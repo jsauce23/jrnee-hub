@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>JRNEE Website Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script>(function(){var t='light';try{if(localStorage.getItem('hub-theme')==='dark')t='dark'}catch(e){}document.documentElement.setAttribute('data-theme',t)})()</script>
+<style>
+:root{
+  --bg:#F6F8FC;--surface:#fff;--soft:#F2F5FB;--ink:#0A1224;--slate:#56637D;--muted:#8793AB;--line:#E3E8F2;
+  --blue:#1257FF;--blue-soft:#EAF0FF;--good:#0E9F6E;--good-bg:#E7F7F0;--bad:#C2410C;--bad-bg:#FFF1E8;
+  --warn:#9A6700;--warn-bg:#FFF6E3;--cyan:#06B6D4;--violet:#7C5CFF;--amber:#F59E0B;--green:#10B981;--rose:#FF4D8D;
+  --shadow:0 1px 2px rgba(10,18,36,.04),0 10px 28px -18px rgba(10,18,36,.22);
+  --sans:'Plus Jakarta Sans',system-ui,-apple-system,Segoe UI,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#0A0F1C;--surface:#111A2C;--soft:#0F1626;--ink:#EDF0F8;--slate:#A3ACC4;--muted:#7F8AA6;--line:#223052;
+  --blue:#5B80FF;--blue-soft:#1A2750;--good:#5ED39A;--good-bg:#11291E;--bad:#F2A07A;--bad-bg:#2E1C12;
+  --warn:#F2BE5E;--warn-bg:#2C2412;--shadow:none;color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{height:100%}
+body{
+  min-height:100%;font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+
+/* ---- top bar ---- */
+.top{
+  position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);
+  backdrop-filter:saturate(170%) blur(14px);border-bottom:1px solid var(--line);
+  padding-top:env(safe-area-inset-top,0px);
+}
+.top .wrap{display:flex;align-items:center;gap:12px;height:62px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand svg{width:30px;height:30px;flex:none}
+.brand b{font-weight:800;font-size:16.5px;letter-spacing:-.04em}
+.brand b i{font-style:normal;color:var(--blue)}
+.brand small{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-left:4px}
+.top .sp{flex:1}
+.tbtn{
+  display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:8px 12px;border-radius:10px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);
+}
+.tbtn:hover{border-color:color-mix(in srgb,var(--blue) 40%,var(--line))}
+.tbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tbtn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+@media (max-width:620px){.tbtn span{display:none}.brand small{display:none}}
+
+/* ---- common ---- */
+main{padding:30px 0 70px}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}
+h1{font-size:clamp(25px,3.4vw,36px);font-weight:800;letter-spacing:-.04em;line-height:1.1}
+h2{font-size:18px;font-weight:800;letter-spacing:-.03em}
+.muted{color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+.sec{margin-top:18px;padding:22px}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.sec-h p{font-size:13.5px;color:var(--muted)}
+.notice{
+  border-radius:14px;padding:14px 16px;font-size:14px;margin-top:16px;
+  background:var(--warn-bg);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 25%,transparent);
+}
+.notice b{color:var(--ink)}
+.notice code{font-family:var(--mono);font-size:12px;background:color-mix(in srgb,var(--warn) 12%,transparent);padding:1px 6px;border-radius:5px;color:var(--ink)}
+.empty{
+  border:1px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted);font-size:14px;
+}
+.empty b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:4px}
+.loading{display:flex;align-items:center;gap:12px;justify-content:center;padding:70px 0;color:var(--muted)}
+.spin{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--blue);animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---- client list ---- */
+.list-h{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.list-h h1{margin-top:8px}
+.grid{display:grid;gap:14px;margin-top:22px}
+@media (min-width:760px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:1080px){.grid{grid-template-columns:repeat(3,1fr)}}
+.cc{display:block;padding:20px;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
+.cc:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--blue) 40%,var(--line))}
+.cc::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--cyan),var(--blue),var(--violet))}
+.ct{display:flex;align-items:center;gap:12px}
+.tile{
+  width:42px;height:42px;border-radius:12px;flex:none;display:grid;place-items:center;font-weight:800;font-size:14px;color:#fff;
+  background:linear-gradient(140deg,var(--blue),var(--violet));letter-spacing:-.02em;
+}
+.tile.big{width:54px;height:54px;border-radius:15px;font-size:17px}
+.ct b{font-size:16px;font-weight:800;letter-spacing:-.03em;display:block}
+.ct span.d{font-size:13px;color:var(--muted)}
+.status{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  padding:5px 9px;border-radius:20px;background:var(--soft);color:var(--slate);border:1px solid var(--line);white-space:nowrap}
+.cs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}
+.cs div{background:var(--soft);border-radius:12px;padding:12px}
+.cs small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.cs b{font-size:21px;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.conns{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.conn{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:6px;
+  background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+.conn::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.5}
+.conn.on{color:var(--good);background:var(--good-bg);border-color:color-mix(in srgb,var(--good) 25%,transparent)}
+.conn.on::before{background:var(--good);opacity:1}
+.prob{margin-top:12px;font-size:12.5px;color:var(--bad);background:var(--bad-bg);border-radius:10px;padding:8px 10px}
+
+/* ---- deltas ---- */
+.dl{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;vertical-align:middle}
+.dl.up{color:var(--good);background:var(--good-bg)}
+.dl.down{color:var(--bad);background:var(--bad-bg)}
+.dl.flat{color:var(--muted);background:var(--soft)}
+
+/* ---- report ---- */
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--slate);margin-bottom:18px}
+.back:hover{color:var(--blue)}
+.rh{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.rt{display:flex;align-items:center;gap:14px}
+.rt h1{margin-top:4px}
+.rt .d{font-size:14px;color:var(--muted)}
+.ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pills{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:3px}
+.pills button{border:0;background:none;font-size:13px;font-weight:700;padding:7px 12px;border-radius:9px;color:var(--slate)}
+.pills button.on{background:var(--blue);color:#fff}
+.stamp{margin-top:14px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.live{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--good);background:var(--good-bg);border-radius:20px;padding:4px 9px}
+.live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
+
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:22px}
+@media (min-width:900px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{padding:18px;position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kc,var(--blue))}
+.kpi small{display:block;font-size:12.5px;font-weight:600;color:var(--slate)}
+.kpi .v{font-size:clamp(24px,3vw,32px);font-weight:800;letter-spacing:-.045em;margin-top:6px;font-variant-numeric:tabular-nums}
+.kpi .n{font-size:12.5px;color:var(--muted);margin-top:4px}
+
+.chart{width:100%;height:auto;display:block}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .ax{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+.chart .lc{fill:none;stroke:var(--blue);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.chart .lp{fill:none;stroke:var(--muted);stroke-width:1.6;stroke-dasharray:4 5;opacity:.7}
+.legend{display:flex;gap:16px;font-size:12.5px;color:var(--slate);flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:16px;height:3px;border-radius:2px;background:var(--blue);display:inline-block}
+.legend i.p{background:repeating-linear-gradient(90deg,var(--muted) 0 4px,transparent 4px 8px)}
+
+.two{display:grid;gap:18px}
+@media (min-width:900px){.two{grid-template-columns:1fr 1fr}.two>.sec{margin-top:18px}}
+.bars{display:grid;gap:12px}
+.bar .bl{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}
+.bar .bl b{font-weight:700}
+.bar .bl span{color:var(--muted);font-variant-numeric:tabular-nums}
+.bar .tr{height:8px;border-radius:6px;background:var(--soft);margin-top:6px;overflow:hidden}
+.bar .tr i{display:block;height:100%;border-radius:6px;background:var(--bc,var(--blue))}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500;text-align:left;padding:0 8px 10px}
+td{padding:10px 8px;border-top:1px solid var(--line);vertical-align:top}
+th.r,td.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.q{font-weight:600;word-break:break-word}
+td.pth{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--slate)}
+.tscroll{overflow-x:auto}
+
+.devs{display:flex;gap:10px;flex-wrap:wrap}
+.dev{flex:1;min-width:120px;background:var(--soft);border-radius:12px;padding:14px}
+.dev small{display:block;font-size:12.5px;color:var(--slate);font-weight:600;text-transform:capitalize}
+.dev b{font-size:24px;font-weight:800;letter-spacing:-.04em}
+
+.leads{display:grid;gap:10px}
+.lead{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--soft)}
+.lead .lh{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.lead .lh b{font-weight:800;letter-spacing:-.02em}
+.lead .lh span{font-size:12.5px;color:var(--muted)}
+.lead .lc{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--slate);margin-top:4px}
+.lead .lc a{color:var(--blue);font-weight:600}
+.lead p{font-size:14px;margin-top:8px;white-space:pre-wrap;word-break:break-word}
+.tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:20px;background:var(--blue-soft);color:var(--blue)}
+
+.foot{margin-top:34px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+
+/* present mode: client-facing, no admin controls */
+body.present .admin{display:none !important}
+body.present .hide-present{display:none !important}
+.exitp{display:none}
+body.present .exitp{display:inline-flex}
+
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#/" aria-label="JRNEE Website Hub">
+      <svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="#1257FF"/><path d="M11 10.5 H23 V20.5 A5 5 0 0 1 13 20.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/><circle cx="11" cy="10.5" r="2.9" fill="#fff"/></svg>
+      <b>JRNEE<i>.ai</i></b><small>Website Hub</small>
+    </a>
+    <div class="sp"></div>
+    <button class="tbtn exitp" id="exitBtn" type="button"><svg viewBox="0 0 20 20"><path d="M12 5 7 10l5 5"/></svg><span>Exit presentation</span></button>
+    <button class="tbtn admin" id="presentBtn" type="button" hidden><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="M10 14v3M7 17h6"/></svg><span>Present</span></button>
+    <button class="tbtn" id="themeBtn" type="button"></button>
+    <a class="tbtn admin" href="/logout"><svg viewBox="0 0 20 20"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 14l4-4-4-4M16 10H8"/></svg><span>Log out</span></a>
+  </div>
+</header>
+
+<main><div class="wrap" id="view"></div></main>
+
+<script>
+const $ = s => document.querySelector(s);
+const view = $('#view');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => n == null ? '—' : Math.round(n).toLocaleString('en-US');
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fdate = d => MON[d.getMonth()] + ' ' + d.getDate();
+function dur(s){ s = Math.round(s || 0); const m = Math.floor(s / 60), r = s % 60; return m ? `${m}m ${String(r).padStart(2,'0')}s` : `${r}s`; }
+function ago(iso){
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.round(s/60) + ' min ago';
+  if (s < 86400) return Math.round(s/3600) + ' hr ago';
+  const d = Math.round(s/86400); return d === 1 ? 'yesterday' : d + ' days ago';
+}
+function store(k, v){ try{ if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); }catch(e){ return null; } }
+
+/* change vs previous period */
+function delta(c, p){
+  if (c == null || p == null) return '';
+  if (!p) return c ? '<span class="dl up">New</span>' : '';
+  const pct = Math.round((c - p) / p * 100);
+  if (pct === 0) return '<span class="dl flat">Same</span>';
+  return `<span class="dl ${pct > 0 ? 'up' : 'down'}">${pct > 0 ? '▲' : '▼'} ${Math.abs(pct)}%</span>`;
+}
+function posDelta(c, p){
+  if (!c || !p) return '';
+  const d = +(p - c).toFixed(1);
+  if (Math.abs(d) < 0.1) return '<span class="dl flat">Same</span>';
+  return `<span class="dl ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d)}</span>`;
+}
+
+const CHANNELS = {
+  'Organic Search':'Google and other search engines','Direct':'Came straight to the site','Organic Social':'Social media',
+  'Referral':'Links from other websites','Paid Search':'Paid search ads','Paid Social':'Paid social ads','Email':'Email',
+  'Organic Maps':'Google Maps','Organic Video':'YouTube and video','Display':'Display ads','Cross-network':'Google ad network',
+  'Unassigned':'Other / not identified','Organic Shopping':'Shopping','Paid Other':'Other paid','Affiliates':'Affiliates','SMS':'Text message'
+};
+const BAR_COLORS = ['var(--blue)','var(--cyan)','var(--violet)','var(--green)','var(--amber)','var(--rose)'];
+
+async function api(p){
+  const r = await fetch(p, { credentials:'same-origin' });
+  if (r.status === 401) { location.href = '/'; throw new Error('signed out'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Request failed (' + r.status + ')');
+  return j;
+}
+const loading = msg => `<div class="loading"><span class="spin"></span>${esc(msg)}</div>`;
+
+/* ================= client list ================= */
+async function showList(fresh){
+  document.body.classList.remove('present');
+  $('#presentBtn').hidden = true;
+  view.innerHTML = loading('Pulling live numbers for every client…');
+  let data;
+  try { data = await api('/api/clients' + (fresh ? '?refresh=1' : '')); }
+  catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load clients.</b> ${esc(e.message)}</div>`; return; }
+
+  const cfg = data.config || {};
+  let warn = '';
+  if (!cfg.google) warn += `<div class="notice"><b>Google isn't connected yet.</b> Add <code>GOOGLE_SERVICE_ACCOUNT</code> in Render → Environment to show Analytics and Search Console.</div>`;
+  if (!cfg.netlify) warn += `<div class="notice"><b>Netlify isn't connected yet.</b> Add <code>NETLIFY_TOKEN</code> in Render → Environment to show form leads.</div>`;
+  if (cfg.serviceAccount) warn += `<p class="muted" style="font-size:12.5px;margin-top:14px">Hub service account: <span style="font-family:var(--mono)">${esc(cfg.serviceAccount)}</span> — add this email as a viewer on each client's Analytics and Search Console.</p>`;
+
+  const cards = data.clients.map(c => {
+    const on = c.connected || {};
+    return `<a class="cc card" href="#/c/${encodeURIComponent(c.id)}">
+      <div class="ct">
+        <span class="tile">${esc(c.initials)}</span>
+        <div><b>${esc(c.name)}</b><span class="d">${esc(c.domain)}</span></div>
+        ${c.status ? `<span class="status">${esc(c.status)}</span>` : ''}
+      </div>
+      <div class="cs">
+        <div><small>Visitors · 28 days</small><b>${fmt(c.visitors)}</b>${delta(c.visitors, c.prevVisitors)}</div>
+        <div><small>Leads · 28 days</small><b>${fmt(c.leads)}</b>${delta(c.leads, c.prevLeads)}</div>
+      </div>
+      <div class="conns">
+        <span class="conn ${on.ga ? 'on' : ''}">Analytics</span>
+        <span class="conn ${on.gsc ? 'on' : ''}">Search Console</span>
+        <span class="conn ${on.netlify ? 'on' : ''}">Netlify leads</span>
+      </div>
+      ${(c.problems || []).length ? `<div class="prob">${esc(c.problems[0])}</div>` : ''}
+    </a>`;
+  }).join('');
+
+  view.innerHTML = `
+    <div class="list-h">
+      <div><div class="eyebrow">Internal · all clients</div><h1>Client websites</h1></div>
+      <button class="tbtn" id="refreshList" type="button"><svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-2-4.5M16 4v3.5h-3.5"/></svg><span>Refresh</span></button>
+    </div>
+    ${warn}
+    <div class="grid">${cards || '<div class="empty"><b>No clients yet</b>Add one to clients.json.</div>'}</div>`;
+  $('#refreshList').onclick = () => showList(true);
+}
+
+/* ================= report ================= */
+const state = { id:null, days:28 };
+
+function niceMax(m){ const p = Math.pow(10, Math.floor(Math.log10(m))); return [1,2,2.5,5,10].map(s => s*p).find(s => s >= m); }
+function dayDate(n, i){ const d = new Date(); d.setDate(d.getDate() - (n - i)); return d; }
+function lineChart(cur, prev, n){
+  const W = 760, H = 240, pl = 42, pr = 14, pt = 14, pb = 28;
+  const max = niceMax(Math.max(1, ...cur, ...prev));
+  const x = i => pl + (W - pl - pr) * (n <= 1 ? 0 : i / (n - 1));
+  const y = v => pt + (H - pt - pb) * (1 - v / max);
+  const path = a => a.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join('');
+  let g = '';
+  for (let k = 0; k <= 4; k++){
+    const v = max * k / 4;
+    g += `<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${pl-8}" y="${y(v)+4}" text-anchor="end">${fmt(v)}</text>`;
+  }
+  [...new Set([0, Math.round((n-1)/3), Math.round(2*(n-1)/3), n-1])].forEach(i => {
+    g += `<text class="ax" x="${x(i)}" y="${H-8}" text-anchor="middle">${fdate(dayDate(n, i))}</text>`;
+  });
+  const area = path(cur) + ` L${x(n-1)} ${y(0)} L${x(0)} ${y(0)} Z`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Visitors per day, this period compared with the one before">
+    <defs><linearGradient id="fillG" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--blue);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--blue);stop-opacity:0"/></linearGradient></defs>
+    ${g}<path d="${area}" fill="url(#fillG)"/><path class="lp" d="${path(prev)}"/><path class="lc" d="${path(cur)}"/></svg>`;
+}
+
+function notConnected(label, how){
+  return `<div class="empty admin"><b>${esc(label)} isn't connected for this client</b>${how}</div>`;
+}
+function sourceError(msg){ return `<div class="notice admin">${esc(msg)}</div>`; }
+
+function sectionState(err, label, how){
+  if (err === 'not_connected') return { hideInPresent:true, html:notConnected(label, how) };
+  if (err) return { hideInPresent:true, html:sourceError(err) };
+  return null;
+}
+
+async function showReport(fresh){
+  $('#presentBtn').hidden = false;
+  view.innerHTML = loading('Pulling live numbers…');
+  let r;
+  try { r = await api(`/api/report?c=${encodeURIComponent(state.id)}&days=${state.days}` + (fresh ? '&refresh=1' : '')); }
+  catch(e){ view.innerHTML = `<a class="back admin" href="#/">← All clients</a><div class="notice"><b>Couldn't load this report.</b> ${esc(e.message)}</div>`; return; }
+
+  const c = r.client, n = r.days, ga = r.ga, gs = r.gsc, ld = r.leads, er = r.errors || {};
+  const start = dayDate(n, 0), end = dayDate(n, n - 1);
+
+  /* KPIs */
+  const kpi = (label, value, d, note, color, missing) => `<div class="kpi card ${missing ? 'hide-present' : ''}" style="--kc:${color}">
+      <small>${label}</small><div class="v">${value}${d || ''}</div><div class="n">${note}</div></div>`;
+  let leadVal = '—', leadD = '', leadNote = 'Not connected yet', leadMissing = true;
+  if (ld){ leadVal = fmt(ld.count.cur); leadD = delta(ld.count.cur, ld.count.prev); leadNote = 'Form submissions from the site'; leadMissing = false; }
+  else if (ga && ga.keyEvents.cur != null){ leadVal = fmt(ga.keyEvents.cur); leadD = delta(ga.keyEvents.cur, ga.keyEvents.prev); leadNote = 'Key actions tracked in Analytics'; leadMissing = false; }
+
+  const kpis = `<div class="kpis">
+    ${kpi('People who visited', ga ? fmt(ga.totals.cur.activeUsers) : '—', ga ? delta(ga.totals.cur.activeUsers, ga.totals.prev.activeUsers) : '',
+        ga ? `${fmt(ga.totals.cur.sessions)} visits · ${dur(ga.totals.cur.averageSessionDuration)} average` : 'Analytics not connected', 'var(--blue)', !ga)}
+    ${kpi('Leads', leadVal, leadD, leadNote, 'var(--green)', leadMissing)}
+    ${kpi('Clicks from Google', gs ? fmt(gs.totals.cur.clicks) : '—', gs ? delta(gs.totals.cur.clicks, gs.totals.prev.clicks) : '',
+        gs ? `Shown ${fmt(gs.totals.cur.impressions)} times in search` : 'Search Console not connected', 'var(--cyan)', !gs)}
+    ${kpi('Average Google position', gs && gs.totals.cur.position ? gs.totals.cur.position.toFixed(1) : '—', gs ? posDelta(gs.totals.cur.position, gs.totals.prev.position) : '',
+        gs ? 'Lower is better · 1 is the top result' : 'Search Console not connected', 'var(--violet)', !gs)}
+  </div>`;
+
+  /* visitors chart */
+  let chart;
+  const gaState = sectionState(er.ga, 'Google Analytics', 'Add this client\'s GA4 property ID to <code>clients.json</code>.');
+  if (ga){
+    const total = ga.series.cur.reduce((a,b) => a+b, 0);
+    chart = `<section class="sec card">
+      <div class="sec-h"><h2>Visitors per day</h2>
+        <div class="legend"><span><i></i>Last ${n} days</span><span><i class="p"></i>The ${n} days before</span></div></div>
+      ${total ? lineChart(ga.series.cur, ga.series.prev, n) : '<div class="empty"><b>No visits recorded in this period</b>Numbers appear here once the site is live and getting traffic.</div>'}
+    </section>`;
+  } else chart = `<section class="sec card hide-present"><div class="sec-h"><h2>Visitors per day</h2></div>${gaState.html}</section>`;
+
+  /* sources */
+  let sources;
+  if (ga){
+    const tot = ga.channels.reduce((a, x) => a + x.sessions, 0) || 1;
+    sources = ga.channels.length ? `<div class="bars">${ga.channels.slice(0, 7).map((ch, i) => {
+      const p = ch.sessions / tot;
+      return `<div class="bar" style="--bc:${BAR_COLORS[i % BAR_COLORS.length]}"><div class="bl"><b>${esc(CHANNELS[ch.name] || ch.name)}</b><span>${Math.round(p*100)}%</span></div><div class="tr"><i style="width:${Math.max(2, p*100)}%"></i></div></div>`;
+    }).join('')}</div>` : '<div class="empty">No visits in this period yet.</div>';
+  } else sources = gaState.html;
+
+  /* devices */
+  let devices;
+  if (ga){
+    const tot = ga.devices.reduce((a, x) => a + x.sessions, 0) || 1;
+    devices = ga.devices.length ? `<div class="devs">${ga.devices.map(d => `<div class="dev"><small>${esc(d.name)}</small><b>${Math.round(d.sessions/tot*100)}%</b></div>`).join('')}</div>` : '<div class="empty">No visits in this period yet.</div>';
+  } else devices = gaState.html;
+
+  /* searches */
+  const gsState = sectionState(er.gsc, 'Search Console', 'Add this client\'s Search Console property to <code>clients.json</code>.');
+  let queries;
+  if (gs){
+    queries = gs.queries.length ? `<div class="tscroll"><table>
+      <thead><tr><th>What they searched</th><th class="r">Clicks</th><th class="r">Times shown</th><th class="r">Position</th></tr></thead>
+      <tbody>${gs.queries.map(q => `<tr><td class="q">${esc(q.query)}</td><td class="r">${fmt(q.clicks)}</td><td class="r">${fmt(q.impressions)}</td><td class="r">${q.position.toFixed(1)}</td></tr>`).join('')}</tbody>
+    </table></div>` : '<div class="empty"><b>No search data yet</b>Google usually starts reporting a few days to a couple of weeks after a site goes live.</div>';
+  } else queries = gsState.html;
+
+  /* pages */
+  let pages;
+  if (ga){
+    pages = ga.pages.length ? `<div class="tscroll"><table>
+      <thead><tr><th>Page</th><th class="r">Views</th><th class="r">Avg. time</th></tr></thead>
+      <tbody>${ga.pages.map(p => `<tr><td class="pth">${esc(p.path)}</td><td class="r">${fmt(p.views)}</td><td class="r">${dur(p.avgTime)}</td></tr>`).join('')}</tbody>
+    </table></div>` : '<div class="empty">No page views in this period yet.</div>';
+  } else pages = gaState.html;
+
+  /* leads */
+  const ldState = sectionState(er.leads, 'Netlify', 'Add this client\'s Netlify site ID to <code>clients.json</code>.');
+  let leads;
+  if (ld){
+    leads = ld.leads.length ? `<div class="leads">${ld.leads.map(x => `<div class="lead">
+      <div class="lh"><b>${esc(x.name || 'No name given')}</b><span>${esc(ago(x.when))}${x.form ? ` · <span class="tag">${esc(x.form)}</span>` : ''}</span></div>
+      <div class="lc">${x.phone ? `<a href="tel:${esc(x.phone)}">${esc(x.phone)}</a>` : ''}${x.email ? `<a href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : ''}</div>
+      ${x.message ? `<p>${esc(x.message)}</p>` : ''}
+    </div>`).join('')}</div>` : '<div class="empty"><b>No form leads in this period</b>New submissions from the site will show up here.</div>';
+  } else leads = ldState.html;
+
+  const hp = st => st ? 'hide-present' : '';
+  view.innerHTML = `
+    <a class="back admin" href="#/">← All clients</a>
+    <div class="rh">
+      <div class="rt">
+        <span class="tile big">${esc(c.initials)}</span>
+        <div><div class="eyebrow">Website performance report</div><h1>${esc(c.name)}</h1><div class="d">${esc(c.domain)}</div></div>
+      </div>
+      <div class="ctl">
+        <div class="pills" role="group" aria-label="Time period">
+          ${[7,28,90].map(d => `<button type="button" data-d="${d}" class="${d === n ? 'on' : ''}">${d} days</button>`).join('')}
+        </div>
+        <button class="tbtn admin" id="refreshRep" type="button"><svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-2-4.5M16 4v3.5h-3.5"/></svg><span>Refresh</span></button>
+      </div>
+    </div>
+    <div class="stamp"><span class="live">Live data</span>${fdate(start)} – ${fdate(end)} · updated ${esc(ago(r.generated))}</div>
+    ${kpis}
+    ${chart}
+    <div class="two">
+      <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>Where visitors came from</h2></div>${sources}</section>
+      <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>What they used</h2><p>Share of visits by device</p></div>${devices}</section>
+    </div>
+    <section class="sec card ${hp(gsState)}"><div class="sec-h"><h2>What people searched on Google</h2><p>Searches where this site showed up${gs ? ` · data to ${esc(gs.range.endDate)}` : ''}</p></div>${queries}</section>
+    <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>Most-visited pages</h2></div>${pages}</section>
+    <section class="sec card ${hp(ldState)}"><div class="sec-h"><h2>Leads from the website</h2><p>Every form submission, newest first</p></div>${leads}</section>
+    <div class="foot"><span>Prepared by JRNEE Technologies LLC for ${esc(c.legal)}</span><span>Sources: Google Analytics · Google Search Console · Netlify</span></div>`;
+
+  view.querySelectorAll('.pills button').forEach(b => b.onclick = () => { state.days = +b.dataset.d; store('hub-days', String(state.days)); showReport(); });
+  const rb = $('#refreshRep'); if (rb) rb.onclick = () => showReport(true);
+}
+
+/* ================= router ================= */
+function route(){
+  const m = location.hash.match(/^#\/c\/([\w-]+)/);
+  if (m){ state.id = decodeURIComponent(m[1]); showReport(); }
+  else { state.id = null; showList(); }
+  scrollTo(0, 0);
+}
+state.days = [7,28,90].includes(+store('hub-days')) ? +store('hub-days') : 28;
+addEventListener('hashchange', route);
+
+/* present mode */
+$('#presentBtn').onclick = () => { document.body.classList.add('present'); scrollTo(0,0); };
+$('#exitBtn').onclick = () => document.body.classList.remove('present');
+addEventListener('keydown', e => { if (e.key === 'Escape') document.body.classList.remove('present'); });
+
+/* theme */
+const SUN = '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.3 4.3l1.4 1.4M14.3 14.3l1.4 1.4M4.3 15.7l1.4-1.4M14.3 5.7l1.4-1.4"/></svg>';
+const MOON = '<svg viewBox="0 0 20 20"><path d="M16 12.5A6.5 6.5 0 0 1 7.5 4a6.5 6.5 0 1 0 8.5 8.5z"/></svg>';
+function paintTheme(){
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const b = $('#themeBtn');
+  b.innerHTML = dark ? SUN + '<span>Light</span>' : MOON + '<span>Dark</span>';
+  b.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+}
+$('#themeBtn').onclick = () => {
+  const dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  store('hub-theme', dark ? 'dark' : 'light');
+  paintTheme();
+};
+paintTheme();
+route();
+</script>
+</body>
+</html>

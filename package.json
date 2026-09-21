@@ -1,0 +1,9 @@
+{
+  "name": "jrnee-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JRNEE Website Hub — private client analytics back office",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
