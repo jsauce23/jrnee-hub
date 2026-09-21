@@ -303,7 +303,8 @@ async function buildReport(c, n) {
 }
 
 async function summary(c, n = 28) {
-  const o = { visitors: null, prevVisitors: null, leads: null, prevLeads: null, problems: [],
+  const o = { visitors: null, prevVisitors: null, leads: null, prevLeads: null, problems: [], recent: [],
+    hasPassword: !!CLIENT_PW[c.id],
     connected: { ga: !!gaId(c), gsc: !!c.gscSiteUrl, netlify: !!c.netlifySiteId } };
   const jobs = [];
   if (gaId(c)) jobs.push((async () => {
@@ -312,10 +313,61 @@ async function summary(c, n = 28) {
     [o.visitors, o.prevVisitors] = await Promise.all([q(cur), q(prev)]);
   })().catch(e => o.problems.push(e.message)));
   if (c.netlifySiteId) jobs.push(netlifyLeads(c.netlifySiteId, n)
-    .then(v => { o.leads = v.count.cur; o.prevLeads = v.count.prev; })
+    .then(v => { o.leads = v.count.cur; o.prevLeads = v.count.prev; o.recent = v.leads.slice(0, 25); })
     .catch(e => o.problems.push(e.message)));
   await Promise.all(jobs);
   return o;
+}
+
+function buildDashboard(clients) {
+  const alerts = [];
+  const add = (sev, c, title, body) => alerts.push({ sev, client: c.id, clientName: c.name, title, body });
+  let visitors = 0, prevVisitors = 0, leads = 0, prevLeads = 0, anyGa = false, anyLeads = false;
+  const inbox = [];
+  const setup = [];
+
+  clients.forEach(c => {
+    const on = c.connected;
+    if (c.visitors != null) { visitors += c.visitors; prevVisitors += c.prevVisitors || 0; anyGa = true; }
+    if (c.leads != null) { leads += c.leads; prevLeads += c.prevLeads || 0; anyLeads = true; }
+    (c.recent || []).forEach(l => inbox.push({ ...l, client: c.id, clientName: c.name }));
+
+    (c.problems || []).forEach(p => add('error', c, 'A connection is failing', p));
+
+    const today = (c.recent || []).filter(l => Date.now() - new Date(l.when).getTime() < 864e5).length;
+    if (today) add('lead', c, today === 1 ? 'New lead in the last 24 hours' : `${today} new leads in the last 24 hours`, 'Open the lead inbox below to follow up.');
+
+    if (c.visitors != null && c.prevVisitors >= 50 && c.visitors <= c.prevVisitors * 0.75)
+      add('warn', c, 'Visitors dropped sharply', `${Math.round((1 - c.visitors / c.prevVisitors) * 100)}% fewer visitors than the 28 days before.`);
+    if (c.leads != null && c.prevLeads >= 5 && c.leads <= c.prevLeads * 0.7)
+      add('warn', c, 'Leads dropped sharply', `${c.leads} leads, down from ${c.prevLeads} the 28 days before.`);
+
+    const missing = [];
+    if (!on.ga) missing.push('Google Analytics');
+    if (!on.gsc) missing.push('Search Console');
+    if (!on.netlify) missing.push('Netlify leads');
+    if (missing.length) add('setup', c, 'Not fully connected', 'Missing: ' + missing.join(', ') + '.');
+    if (!c.hasPassword) add('setup', c, 'No client password set', `They can't sign in to their report until CLIENT_PASSWORDS includes "${c.id}".`);
+
+    setup.push({ id: c.id, name: c.name, ga: on.ga, gsc: on.gsc, netlify: on.netlify, password: c.hasPassword,
+      ok: on.ga && on.gsc && on.netlify && c.hasPassword && !(c.problems || []).length });
+  });
+
+  const order = { error: 0, lead: 1, warn: 2, setup: 3 };
+  alerts.sort((a, b) => order[a.sev] - order[b.sev]);
+  inbox.sort((a, b) => new Date(b.when) - new Date(a.when));
+
+  return {
+    totals: {
+      clients: clients.length,
+      visitors: anyGa ? visitors : null, prevVisitors: anyGa ? prevVisitors : null,
+      leads: anyLeads ? leads : null, prevLeads: anyLeads ? prevLeads : null,
+      attention: alerts.filter(a => a.sev !== 'setup').length
+    },
+    alerts,
+    inbox: inbox.slice(0, 60),
+    setup
+  };
 }
 
 const cache = new Map();
@@ -399,7 +451,19 @@ http.createServer(async (req, res) => {
       const fresh = u.searchParams.has('refresh');
       const list = await Promise.all(CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
       return json(res, 200, {
-        clients: CLIENTS.map((c, i) => ({ ...publicClient(c), ...list[i] })),
+        clients: CLIENTS.map((c, i) => { const { recent, ...rest } = list[i]; return { ...publicClient(c), ...rest }; }),
+        config: { google: !!SA, netlify: !!NETLIFY_TOKEN, serviceAccount: SA ? SA.client_email : null }
+      });
+    }
+
+    if (u.pathname === '/api/dashboard') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      const fresh = u.searchParams.has('refresh');
+      const list = await Promise.all(CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
+      const clients = CLIENTS.map((c, i) => ({ ...publicClient(c), ...list[i] }));
+      return json(res, 200, {
+        ...buildDashboard(clients),
+        generated: new Date().toISOString(),
         config: { google: !!SA, netlify: !!NETLIFY_TOKEN, serviceAccount: SA ? SA.client_email : null }
       });
     }

@@ -16,7 +16,8 @@ Never commit the Google key file or any of these values to GitHub.
 
 ## How sign-in works
 
-- Your admin password opens the client list, where you can open any report and use **Present**.
+- Your admin password opens **My Dashboard**: totals across all clients, alerts, a combined lead inbox
+  and a setup checklist. The **Clients** tab lists every client; open any report and use **Present**.
 - A client's password takes them straight to **their own report** and nothing else. The server
   enforces this — they can't reach the client list or another client's report even by editing the URL.
 - Every password must be different. Commas aren't allowed inside a password.

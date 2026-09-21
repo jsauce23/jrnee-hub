@@ -184,6 +184,32 @@ td.pth{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--s
 
 .foot{margin-top:34px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
 
+/* ---- admin tabs ---- */
+.tabs{display:flex;gap:4px;margin-left:14px}
+.tabs a{font-size:13.5px;font-weight:700;padding:8px 12px;border-radius:10px;color:var(--slate);white-space:nowrap}
+.tabs a:hover{color:var(--ink)}
+.tabs a.on{background:var(--blue-soft);color:var(--blue)}
+@media (max-width:620px){.brand b{display:none}.tabs{margin-left:4px}.tabs a{padding:7px 9px;font-size:12.5px}}
+
+/* ---- dashboard ---- */
+.alerts{display:grid;gap:10px}
+.al{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--soft)}
+.al > i{width:9px;height:9px;border-radius:50%;flex:none;margin-top:7px;background:var(--ac);box-shadow:0 0 0 4px color-mix(in srgb,var(--ac) 18%,transparent)}
+.al .who{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ac)}
+.al b{display:block;font-weight:800;letter-spacing:-.02em;margin-top:3px}
+.al p{font-size:13.5px;color:var(--slate);margin-top:2px}
+.al .go{margin-left:auto;font-size:13px;font-weight:700;color:var(--blue);white-space:nowrap;padding-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chips button{border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--slate)}
+.chips button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.ok{color:var(--good);font-weight:800}
+.no{color:var(--muted)}
+.pill{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:20px;white-space:nowrap}
+.pill.ready{color:var(--good);background:var(--good-bg)}
+.pill.todo{color:var(--warn);background:var(--warn-bg)}
+td.c{text-align:center}
+th.c{text-align:center}
+
 /* present mode and client logins: no admin controls, no unconnected sections */
 body.present .admin,body.client .admin{display:none !important}
 body.present .hide-present,body.client .hide-present{display:none !important}
@@ -203,6 +229,10 @@ body.present .exitp{display:inline-flex}
       <svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="#1257FF"/><path d="M11 10.5 H23 V20.5 A5 5 0 0 1 13 20.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/><circle cx="11" cy="10.5" r="2.9" fill="#fff"/></svg>
       <b>JRNEE<i>.ai</i></b><small>Website Hub</small>
     </a>
+    <nav class="tabs admin" aria-label="Admin">
+      <a href="#/" data-tab="dash">My Dashboard</a>
+      <a href="#/clients" data-tab="clients">Clients</a>
+    </nav>
     <div class="sp"></div>
     <button class="tbtn exitp" id="exitBtn" type="button"><svg viewBox="0 0 20 20"><path d="M12 5 7 10l5 5"/></svg><span>Exit presentation</span></button>
     <button class="tbtn admin" id="presentBtn" type="button" hidden><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="M10 14v3M7 17h6"/></svg><span>Present</span></button>
@@ -309,6 +339,80 @@ async function showList(fresh){
   $('#refreshList').onclick = () => showList(true);
 }
 
+/* ================= my dashboard (admin only) ================= */
+let dashFilter = 'all';
+const SEV = { error:['var(--bad)','Needs fixing'], lead:['var(--green)','New lead'], warn:['var(--amber)','Heads up'], setup:['var(--muted)','Setup'] };
+function leadCard(x){
+  return `<div class="lead">
+    <div class="lh"><b>${esc(x.name || 'No name given')}</b><span>${esc(ago(x.when))} · <span class="tag">${esc(x.clientName)}</span>${x.form ? ` <span class="tag">${esc(x.form)}</span>` : ''}</span></div>
+    <div class="lc">${x.phone ? `<a href="tel:${esc(x.phone)}">${esc(x.phone)}</a>` : ''}${x.email ? `<a href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : ''}</div>
+    ${x.message ? `<p>${esc(x.message)}</p>` : ''}
+  </div>`;
+}
+async function showDashboard(fresh){
+  document.body.classList.remove('present');
+  $('#presentBtn').hidden = true;
+  view.innerHTML = loading('Pulling live numbers across every client…');
+  let d;
+  try { d = await api('/api/dashboard' + (fresh ? '?refresh=1' : '')); }
+  catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load your dashboard.</b> ${esc(e.message)}</div>`; return; }
+
+  const t = d.totals, cfg = d.config || {};
+  let warn = '';
+  if (!cfg.google) warn += `<div class="notice"><b>Google isn't connected yet.</b> Add <code>GOOGLE_SERVICE_ACCOUNT</code> in Render → Environment.</div>`;
+  if (!cfg.netlify) warn += `<div class="notice"><b>Netlify isn't connected yet.</b> Add <code>NETLIFY_TOKEN</code> in Render → Environment to see leads.</div>`;
+
+  const kpi = (label, value, d_, note, color) => `<div class="kpi card" style="--kc:${color}"><small>${label}</small><div class="v">${value}${d_ || ''}</div><div class="n">${note}</div></div>`;
+  const kpis = `<div class="kpis">
+    ${kpi('Visitors, all clients', fmt(t.visitors), delta(t.visitors, t.prevVisitors), t.visitors == null ? 'No Analytics connected yet' : 'Last 28 days vs the 28 before', 'var(--blue)')}
+    ${kpi('Leads, all clients', fmt(t.leads), delta(t.leads, t.prevLeads), t.leads == null ? 'No Netlify leads connected yet' : 'Form submissions, last 28 days', 'var(--green)')}
+    ${kpi('Clients', fmt(t.clients), '', 'In clients.json', 'var(--violet)')}
+    ${kpi('Need your attention', fmt(t.attention), '', t.attention ? 'New leads, drops or failures' : 'All clear', t.attention ? 'var(--amber)' : 'var(--cyan)')}
+  </div>`;
+
+  const alerts = d.alerts.length ? `<div class="alerts">${d.alerts.map(a => {
+    const [col, label] = SEV[a.sev] || SEV.setup;
+    return `<div class="al" style="--ac:${col}"><i></i><div><div class="who">${esc(label)} · ${esc(a.clientName)}</div><b>${esc(a.title)}</b><p>${esc(a.body)}</p></div><a class="go" href="#/c/${encodeURIComponent(a.client)}">Open →</a></div>`;
+  }).join('')}</div>` : '<div class="empty"><b>Nothing needs you right now</b>Alerts show up here when a lead comes in, traffic drops, or a connection breaks.</div>';
+
+  const names = [...new Map(d.inbox.map(l => [l.client, l.clientName])).entries()];
+  const inboxBody = () => {
+    const list = d.inbox.filter(l => dashFilter === 'all' || l.client === dashFilter);
+    return list.length ? `<div class="leads">${list.map(leadCard).join('')}</div>`
+      : '<div class="empty"><b>No leads in the last 28 days</b>Form submissions from every client site land here, newest first.</div>';
+  };
+  const chips = names.length > 1 ? `<div class="chips" id="chips"><button type="button" data-f="all" class="${dashFilter === 'all' ? 'on' : ''}">All clients</button>${names.map(([id, nm]) => `<button type="button" data-f="${esc(id)}" class="${dashFilter === id ? 'on' : ''}">${esc(nm)}</button>`).join('')}</div>` : '';
+
+  const mark = b => b ? '<span class="ok">✓</span>' : '<span class="no">—</span>';
+  const setup = `<div class="tscroll"><table>
+    <thead><tr><th>Client</th><th class="c">Analytics</th><th class="c">Search Console</th><th class="c">Netlify</th><th class="c">Password</th><th class="r">Status</th></tr></thead>
+    <tbody>${d.setup.map(s => `<tr>
+      <td class="q"><a href="#/c/${encodeURIComponent(s.id)}">${esc(s.name)}</a></td>
+      <td class="c">${mark(s.ga)}</td><td class="c">${mark(s.gsc)}</td><td class="c">${mark(s.netlify)}</td><td class="c">${mark(s.password)}</td>
+      <td class="r">${s.ok ? '<span class="pill ready">Ready</span>' : '<span class="pill todo">Needs setup</span>'}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+
+  view.innerHTML = `
+    <div class="list-h">
+      <div><div class="eyebrow">Internal · JRNEE</div><h1>My Dashboard</h1></div>
+      <button class="tbtn" id="refreshDash" type="button"><svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-2-4.5M16 4v3.5h-3.5"/></svg><span>Refresh</span></button>
+    </div>
+    <div class="stamp"><span class="live">Live data</span>Last 28 days · updated ${esc(ago(d.generated))}</div>
+    ${warn}
+    ${kpis}
+    <section class="sec card"><div class="sec-h"><h2>Alerts</h2><p>Newest leads and problems first</p></div>${alerts}</section>
+    <section class="sec card"><div class="sec-h"><h2>Lead inbox</h2><p>Every client, newest first</p></div>${chips}<div id="inbox">${inboxBody()}</div></section>
+    <section class="sec card"><div class="sec-h"><h2>Client setup</h2><p>What each client still needs connected</p></div>${setup}</section>`;
+
+  $('#refreshDash').onclick = () => showDashboard(true);
+  const ch = $('#chips');
+  if (ch) ch.querySelectorAll('button').forEach(b => b.onclick = () => {
+    dashFilter = b.dataset.f;
+    ch.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    $('#inbox').innerHTML = inboxBody();
+  });
+}
+
 /* ================= report ================= */
 const state = { id:null, days:28 };
 
@@ -350,7 +454,7 @@ async function showReport(fresh){
   view.innerHTML = loading('Pulling live numbers…');
   let r;
   try { r = await api(`/api/report?c=${encodeURIComponent(state.id)}&days=${state.days}` + (fresh ? '&refresh=1' : '')); }
-  catch(e){ view.innerHTML = `<a class="back admin" href="#/">← All clients</a><div class="notice"><b>Couldn't load this report.</b> ${esc(e.message)}</div>`; return; }
+  catch(e){ view.innerHTML = `<a class="back admin" href="#/clients">← All clients</a><div class="notice"><b>Couldn't load this report.</b> ${esc(e.message)}</div>`; return; }
 
   const c = r.client, n = r.days, ga = r.ga, gs = r.gsc, ld = r.leads, er = r.errors || {};
   const start = dayDate(n, 0), end = dayDate(n, n - 1);
@@ -433,7 +537,7 @@ async function showReport(fresh){
 
   const hp = st => st ? 'hide-present' : '';
   view.innerHTML = `
-    <a class="back admin" href="#/">← All clients</a>
+    <a class="back admin" href="#/clients">← All clients</a>
     <div class="rh">
       <div class="rt">
         <span class="tile big">${esc(c.initials)}</span>
@@ -472,9 +576,13 @@ if (IS_CLIENT){
 }
 function route(){
   if (IS_CLIENT){ state.id = HUB.id; showReport(); scrollTo(0, 0); return; }
-  const m = location.hash.match(/^#\/c\/([\w-]+)/);
+  const hsh = location.hash;
+  const m = hsh.match(/^#\/c\/([\w-]+)/);
+  const tab = (m || hsh === '#/clients') ? 'clients' : 'dash';
+  document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
   if (m){ state.id = decodeURIComponent(m[1]); showReport(); }
-  else { state.id = null; showList(); }
+  else if (hsh === '#/clients'){ state.id = null; showList(); }
+  else { state.id = null; showDashboard(); }
   scrollTo(0, 0);
 }
 state.days = [7,28,90].includes(+store('hub-days')) ? +store('hub-days') : 28;
