@@ -6,12 +6,21 @@ Private back office for client website analytics. Runs on Render as a Web Servic
 
 | Key | What it is |
 |---|---|
-| `ADMIN_PASSWORD` | The password you sign in with |
+| `ADMIN_PASSWORD` | Your JRNEE password — the only one that opens the full client list |
+| `CLIENT_PASSWORDS` | One password per client: `marco:Marco1234, nextclient:TheirPass` |
 | `SESSION_SECRET` | Any long random string |
 | `GOOGLE_SERVICE_ACCOUNT` | The full contents of the Google service-account JSON key |
 | `NETLIFY_TOKEN` | Netlify personal access token |
 
 Never commit the Google key file or any of these values to GitHub.
+
+## How sign-in works
+
+- Your admin password opens the client list, where you can open any report and use **Present**.
+- A client's password takes them straight to **their own report** and nothing else. The server
+  enforces this — they can't reach the client list or another client's report even by editing the URL.
+- Every password must be different. Commas aren't allowed inside a password.
+- Remove a client from `CLIENT_PASSWORDS` and anyone logged in as them is signed out immediately.
 
 ## Adding a client
 
@@ -38,6 +47,9 @@ Never commit the Google key file or any of these values to GitHub.
 ```
 
 Any of the three IDs can be left as `""` — that section just shows as not connected.
+
+5. In Render → **Environment**, edit `CLIENT_PASSWORDS` and add `, theirid:TheirPassword` to the end.
+   The id has to match the `"id"` in `clients.json` exactly.
 
 ## Notes
 

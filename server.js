@@ -2,7 +2,8 @@
 // Runs as a Render Web Service. No npm packages needed.
 //
 // Environment variables (set in Render → Environment):
-//   ADMIN_PASSWORD          the password you type to get in
+//   ADMIN_PASSWORD          your JRNEE password — opens the full client list
+//   CLIENT_PASSWORDS        one password per client, e.g.  marco:Marco1234, nextclient:TheirPass
 //   SESSION_SECRET          any long random string (keeps you logged in across restarts)
 //   GOOGLE_SERVICE_ACCOUNT  the whole Google service-account JSON key, pasted in
 //   NETLIFY_TOKEN           a Netlify personal access token (for form leads)
@@ -22,6 +23,23 @@ const CLIENTS = JSON.parse(fs.readFileSync(path.join(__dirname, 'clients.json'),
 const APP = fs.readFileSync(path.join(__dirname, 'app.html'), 'utf8');
 const LOGIN = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
 const SA = loadServiceAccount();
+const CLIENT_PW = loadClientPasswords();
+
+function loadClientPasswords() {
+  const raw = (process.env.CLIENT_PASSWORDS || '').trim();
+  const map = {};
+  if (!raw) return map;
+  if (raw.startsWith('{')) {
+    try { Object.assign(map, JSON.parse(raw)); } catch (e) { console.error('CLIENT_PASSWORDS is not valid JSON'); }
+  } else {
+    raw.split(/[\n,]+/).forEach(pair => {
+      const i = pair.indexOf(':');
+      if (i > 0) { const id = pair.slice(0, i).trim(), pw = pair.slice(i + 1).trim(); if (id && pw) map[id] = pw; }
+    });
+  }
+  Object.keys(map).forEach(id => { if (!CLIENTS.some(c => c.id === id)) console.error(`CLIENT_PASSWORDS has "${id}" but clients.json has no client with that id`); });
+  return map;
+}
 
 function loadServiceAccount() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT;
@@ -40,17 +58,25 @@ function loadServiceAccount() {
 
 /* ---------------- sessions ---------------- */
 const sign = v => crypto.createHmac('sha256', SESSION_SECRET).update(v).digest('base64url');
-function makeSession() {
-  const v = String(Date.now() + SESSION_HOURS * 3600e3) + '.' + crypto.randomBytes(8).toString('hex');
+// session = expiry . role . random . signature   (role is "admin" or "c:<clientId>")
+function makeSession(role) {
+  const v = String(Date.now() + SESSION_HOURS * 3600e3) + '.' + role + '.' + crypto.randomBytes(8).toString('hex');
   return v + '.' + sign(v);
 }
-function validSession(tok) {
-  if (!tok) return false;
+function sessionRole(tok) {
+  if (!tok) return null;
   const i = tok.lastIndexOf('.');
-  if (i < 0) return false;
+  if (i < 0) return null;
   const v = tok.slice(0, i), s = tok.slice(i + 1), good = sign(v);
-  if (s.length !== good.length || !crypto.timingSafeEqual(Buffer.from(s), Buffer.from(good))) return false;
-  return Number(v.split('.')[0]) > Date.now();
+  if (s.length !== good.length || !crypto.timingSafeEqual(Buffer.from(s), Buffer.from(good))) return null;
+  const [exp, role] = v.split('.');
+  if (!(Number(exp) > Date.now())) return null;
+  if (role === 'admin') return role;
+  if (role && role.startsWith('c:')) {
+    const id = role.slice(2);
+    if (CLIENTS.some(c => c.id === id) && CLIENT_PW[id]) return role;   // password removed = locked out
+  }
+  return null;
 }
 function cookies(req) {
   const o = {};
@@ -60,11 +86,17 @@ function cookies(req) {
   });
   return o;
 }
-function passwordOk(p) {
-  if (!ADMIN_PASSWORD) return false;
-  const a = crypto.createHash('sha256').update(String(p)).digest();
-  const b = crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
-  return crypto.timingSafeEqual(a, b);
+const sha = x => crypto.createHash('sha256').update(String(x)).digest();
+function roleForPassword(p) {
+  const h = sha(p);
+  let role = null;
+  if (ADMIN_PASSWORD && crypto.timingSafeEqual(h, sha(ADMIN_PASSWORD))) role = 'admin';
+  // check every client, even after a match, so response time doesn't reveal anything
+  for (const [id, pw] of Object.entries(CLIENT_PW)) {
+    if (!/^[\w-]+$/.test(id) || !CLIENTS.some(c => c.id === id)) continue;
+    if (crypto.timingSafeEqual(h, sha(pw)) && !role) role = 'c:' + id;
+  }
+  return role;
 }
 
 /* login throttling: 10 wrong tries per 15 minutes per address */
@@ -329,10 +361,11 @@ http.createServer(async (req, res) => {
       const a = attempts(ip);
       if (a.n >= 10) return html(res, 429, loginPage('Too many attempts. Try again in 15 minutes.'));
       const b = new URLSearchParams(await readBody(req));
-      if (passwordOk(b.get('password') || '')) {
+      const role = roleForPassword(b.get('password') || '');
+      if (role) {
         tries.delete(ip);
         res.writeHead(303, {
-          'Set-Cookie': `jh=${makeSession()}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_HOURS * 3600}`,
+          'Set-Cookie': `jh=${makeSession(role)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_HOURS * 3600}`,
           Location: '/'
         });
         return res.end();
@@ -347,15 +380,22 @@ http.createServer(async (req, res) => {
       return res.end();
     }
 
-    const authed = validSession(cookies(req).jh);
-    if (!authed) {
+    const role = sessionRole(cookies(req).jh);
+    if (!role) {
       if (u.pathname.startsWith('/api/')) return json(res, 401, { error: 'unauthorized' });
       return html(res, 200, loginPage(ADMIN_PASSWORD ? '' : 'ADMIN_PASSWORD is not set on the server yet.'));
     }
+    const isAdmin = role === 'admin';
+    const ownId = isAdmin ? null : role.slice(2);
 
-    if (u.pathname === '/' || u.pathname === '/index.html') return html(res, 200, APP);
+    if (u.pathname === '/' || u.pathname === '/index.html') {
+      const own = ownId && CLIENTS.find(c => c.id === ownId);
+      const hub = isAdmin ? { role: 'admin' } : { role: 'client', id: ownId, name: own ? own.name : '' };
+      return html(res, 200, APP.replace('__HUB__', JSON.stringify(hub).replace(/</g, '\u003c')));
+    }
 
     if (u.pathname === '/api/clients') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
       const fresh = u.searchParams.has('refresh');
       const list = await Promise.all(CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
       return json(res, 200, {
@@ -365,7 +405,12 @@ http.createServer(async (req, res) => {
     }
 
     if (u.pathname === '/api/report') {
-      const c = CLIENTS.find(x => x.id === u.searchParams.get('c'));
+      let id = u.searchParams.get('c');
+      if (!isAdmin) {
+        if (id && id !== ownId) return json(res, 403, { error: 'Not allowed.' });   // a client can only ever see their own report
+        id = ownId;
+      }
+      const c = CLIENTS.find(x => x.id === id);
       if (!c) return json(res, 404, { error: 'That client isn’t in clients.json.' });
       let n = parseInt(u.searchParams.get('days'), 10);
       if (![7, 28, 90].includes(n)) n = 28;

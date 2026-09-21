@@ -184,9 +184,10 @@ td.pth{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--s
 
 .foot{margin-top:34px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
 
-/* present mode: client-facing, no admin controls */
-body.present .admin{display:none !important}
-body.present .hide-present{display:none !important}
+/* present mode and client logins: no admin controls, no unconnected sections */
+body.present .admin,body.client .admin{display:none !important}
+body.present .hide-present,body.client .hide-present{display:none !important}
+body.present .logout{display:none !important}
 .exitp{display:none}
 body.present .exitp{display:inline-flex}
 
@@ -206,12 +207,13 @@ body.present .exitp{display:inline-flex}
     <button class="tbtn exitp" id="exitBtn" type="button"><svg viewBox="0 0 20 20"><path d="M12 5 7 10l5 5"/></svg><span>Exit presentation</span></button>
     <button class="tbtn admin" id="presentBtn" type="button" hidden><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="M10 14v3M7 17h6"/></svg><span>Present</span></button>
     <button class="tbtn" id="themeBtn" type="button"></button>
-    <a class="tbtn admin" href="/logout"><svg viewBox="0 0 20 20"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 14l4-4-4-4M16 10H8"/></svg><span>Log out</span></a>
+    <a class="tbtn logout" href="/logout"><svg viewBox="0 0 20 20"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 14l4-4-4-4M16 10H8"/></svg><span>Log out</span></a>
   </div>
 </header>
 
 <main><div class="wrap" id="view"></div></main>
 
+<script>window.HUB = __HUB__;</script>
 <script>
 const $ = s => document.querySelector(s);
 const view = $('#view');
@@ -445,6 +447,7 @@ async function showReport(fresh){
       </div>
     </div>
     <div class="stamp"><span class="live">Live data</span>${fdate(start)} – ${fdate(end)} · updated ${esc(ago(r.generated))}</div>
+    ${(ga || gs || ld) ? '' : '<div class="empty" style="margin-top:22px"><b>This report is still being set up</b>Your numbers will appear here as soon as your site\'s accounts are connected.</div>'}
     ${kpis}
     ${chart}
     <div class="two">
@@ -461,7 +464,14 @@ async function showReport(fresh){
 }
 
 /* ================= router ================= */
+const HUB = window.HUB || { role:'admin' };
+const IS_CLIENT = HUB.role === 'client';
+if (IS_CLIENT){
+  document.body.classList.add('client');
+  document.querySelector('.brand').setAttribute('href', '#/c/' + encodeURIComponent(HUB.id));
+}
 function route(){
+  if (IS_CLIENT){ state.id = HUB.id; showReport(); scrollTo(0, 0); return; }
   const m = location.hash.match(/^#\/c\/([\w-]+)/);
   if (m){ state.id = decodeURIComponent(m[1]); showReport(); }
   else { state.id = null; showList(); }
