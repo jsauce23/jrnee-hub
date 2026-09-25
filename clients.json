@@ -9,5 +9,16 @@
     "ga4PropertyId": "",
     "gscSiteUrl": "",
     "netlifySiteId": ""
+  },
+  {
+    "id": "junkjuicers",
+    "name": "Junk Juicers",
+    "legal": "Junk Juicers",
+    "domain": "junkjuicers.com",
+    "initials": "JJ",
+    "status": "Live",
+    "ga4PropertyId": "555878894",
+    "gscSiteUrl": "sc-domain:junkjuicers.com",
+    "netlifySiteId": "2ffb23b6-324e-4390-b32b-ef1656adf04b"
   }
 ]
