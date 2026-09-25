@@ -1,13 +1,12 @@
-[
   {
     "id": "marco",
     "name": "Marco Crawford Law",
     "legal": "Marco Crawford Law, PLLC",
     "domain": "marcocrawfordlaw.com",
     "initials": "MC",
-    "status": "Pre-launch",
-    "ga4PropertyId": "",
-    "gscSiteUrl": "",
+    "status": "Live",
+    "ga4PropertyId": "556020683",
+    "gscSiteUrl": "sc-domain:marcocrawfordlaw.com",
     "netlifySiteId": ""
   },
   {
