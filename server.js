@@ -755,7 +755,9 @@ http.createServer(async (req, res) => {
       if (u.pathname === '/api/report/prepare') {
         const c = CLIENTS.find(x => x.id === body.client);
         if (!c) return json(res, 404, { error: 'Unknown client.' });
-        const period = REPORTS.resolvePeriod(body.period, body.start, body.end);
+        let period;
+        try { period = REPORTS.resolvePeriod(body.period, body.start, body.end); }
+        catch (e) { return json(res, 400, { error: e.message }); }
         const numbers = await REPORTS.gatherNumbers(c, period, reportIO(c));
         const n = REPORTS.buildNarrative(numbers, period);
         return json(res, 200, {

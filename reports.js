@@ -20,12 +20,19 @@ const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5) + 
  * Work out the dates for a period and the matching one before it.
  * Kinds: last-month · this-month · last-30 · last-90 · custom (start,end)
  */
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
 function resolvePeriod(kind, customStart, customEnd) {
   const t = today();
   const yesterday = ymd(addDays(t, -1));
   let start, end, label, span, meta = {};
 
-  if (kind === 'custom' && customStart && customEnd) {
+  if (kind === 'custom') {
+    if (!ISO.test(customStart || '') || !ISO.test(customEnd || ''))
+      throw new Error('Pick both a start and an end date for a custom range.');
+    if (customStart > customEnd) { const sw = customStart; customStart = customEnd; customEnd = sw; }
+  }
+
+  if (kind === 'custom') {
     start = customStart; end = customEnd > yesterday ? yesterday : customEnd;
     const len = daysBetween(start, end);
     const endsYesterday = end === yesterday;

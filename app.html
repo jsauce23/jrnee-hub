@@ -847,38 +847,61 @@ async function showReports(clientId){
 /* ---- build: pick a period, paste two things ---- */
 function newReport(cid){
   REP = null;
+  const iso = d => d.toISOString().slice(0,10);
+  const yest = iso(new Date(Date.now() - 864e5));
+  const weekAgo = iso(new Date(Date.now() - 7*864e5));
   view.innerHTML = `
     <a class="back" href="#/reports/${encodeURIComponent(cid)}">← Reports</a>
     <div class="list-h"><div><div class="eyebrow">New report</div><h1>Which period?</h1></div></div>
     <section class="sec card">
       <div class="sec-h"><h2>Period</h2><p>Month end is the usual one, but any range works.</p></div>
       <div class="per" id="perPick">${PERIOD_OPTS.map(p=>`<button data-p="${p.id}" class="${p.id===repPeriod?'on':''}">${p.t}</button>`).join('')}</div>
-      <div class="dates" id="dateRow" style="display:none">
-        <label>From <input type="date" id="dFrom"></label><label>To <input type="date" id="dTo"></label>
+      <div class="dates" id="dateRow" style="display:${repPeriod==='custom'?'flex':'none'}">
+        <label>From <input type="date" id="dFrom" max="${yest}" value="${weekAgo}"></label>
+        <label>To <input type="date" id="dTo" max="${yest}" value="${yest}"></label>
       </div>
+      <p class="plain" id="periodNote" style="margin-top:12px"></p>
       <div style="margin-top:16px"><button class="tbtn pri" id="prep" type="button">Pull the numbers →</button></div>
     </section>`;
+
+  const note = () => {
+    const el = $('#periodNote');
+    if (repPeriod !== 'custom'){
+      el.textContent = 'Compared against the same number of days immediately before.';
+      return true;
+    }
+    const a = $('#dFrom').value, b = $('#dTo').value;
+    if (!a || !b){ el.textContent = 'Pick both dates to continue.'; return false; }
+    const from = a < b ? a : b, to = a < b ? b : a;
+    const days = Math.round((new Date(to) - new Date(from)) / 864e5) + 1;
+    const nice = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
+    el.textContent = `Covering ${nice(from)} to ${nice(to)} — ${days} day${days===1?'':'s'}, compared against the ${days} days before.`;
+    return true;
+  };
+
   view.querySelectorAll('#perPick button').forEach(b => b.onclick = () => {
     repPeriod = b.dataset.p;
     view.querySelectorAll('#perPick button').forEach(x=>x.classList.toggle('on', x===b));
     $('#dateRow').style.display = repPeriod === 'custom' ? 'flex' : 'none';
+    note();
   });
+  $('#dFrom').onchange = note; $('#dTo').onchange = note;
+  note();
+
   $('#prep').onclick = async () => {
+    if (!note()) return;
     const btn = $('#prep'); btn.textContent = 'Pulling…'; btn.disabled = true;
+    const a = $('#dFrom').value, b = $('#dTo').value;
+    const payload = { client:cid, period:repPeriod };
+    if (repPeriod === 'custom'){ payload.start = a < b ? a : b; payload.end = a < b ? b : a; }
     try {
-      REP = await post('/api/report/prepare', { client:cid, period:repPeriod,
-        start:$('#dFrom')?.value, end:$('#dTo')?.value });
+      REP = await post('/api/report/prepare', payload);
       editReport();
     } catch(e){ btn.disabled = false; btn.textContent = 'Pull the numbers →';
       view.insertAdjacentHTML('beforeend', `<div class="notice"><b>Couldn't pull the numbers.</b> ${esc(e.message)}</div>`); }
   };
 }
 
-const SECTIONS = [
-  ['highlights','Highlights'], ['chart','Visitors chart'], ['sources','Where they came from'],
-  ['devices','Devices'], ['search','Google searches'], ['pages','Top pages'], ['leads','Enquiries'],
-  ['work','What we did'], ['moved','What moved'], ['room','Where we see room'], ['next',"What's next"]
-];
 function editReport(){
   const p = REP.period;
   REP.show = REP.show || Object.fromEntries(SECTIONS.map(([k])=>[k,true]));
@@ -886,7 +909,7 @@ function editReport(){
     <a class="back" href="#/reports/${encodeURIComponent(REP.clientId)}">← Reports</a>
     <div class="list-h"><div><div class="eyebrow">${esc(REP.client.name)} · ${esc(p.label)}</div><h1>What did we do?</h1></div></div>
     <section class="sec card">
-      <div class="sec-h"><h2>What did we do in this period?</h2><p>${esc(p.span)}</p></div>
+      <div class="sec-h"><h2>What did we do ${esc(p.phrase)}?</h2><p>${esc(p.label)} · ${esc(p.span)}</p></div>
       <p class="muted" style="font-size:13.5px">Ask that client's Claude chat what got done, and paste it here. Any format.</p>
       <textarea class="paste" id="workBox" spellcheck="false" placeholder="Paste the work here — bullets, dates, plain lines, whatever you get back.">${esc(REP.work||'')}</textarea>
       <div class="read" id="workRead"><div class="t">Nothing pasted yet</div></div>
