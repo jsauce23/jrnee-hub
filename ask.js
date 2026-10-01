@@ -36,42 +36,61 @@ function classify(question) {
     money:   has(q, MONEY),
     pointed: has(q, POINTED),
     legal:   has(q, LEGAL),
-    traffic: has(q, ['traffic','visitor','visits','people coming','drop','dropped','fell','decline','down','up ']),
+    traffic: has(q, ['traffic','visitor','visits','drop','dropped','fell','decline','down','up ']),
+    social:  has(q, ['social','facebook','instagram','tiktok','linkedin','youtube','twitter','posts','posting']),
     search:  has(q, ['rank','ranking','google','keyword','search','position','page one','page 1','seo','spanish','english','language']),
     leads:   has(q, ['lead','call','calls','enquir','inquir','form','phone','contact','booking']),
     pages:   has(q, ['page','homepage','home page','blog','gallery','pricing','which pages']),
     devices: has(q, ['mobile','phone version','desktop','tablet','device']),
     work:    has(q, ['what did you','what have you','what you did','changes you','worked on','you do this month']),
     next:    has(q, ['next month','next','plan','going to do','coming up','what now']),
-    sources: has(q, ['where do','where are','come from','coming from','source','facebook','social','direct']),
+    sources: has(q, ['where do','where are','come from','coming from','source','channel','referral','direct']),
   };
 }
 
 
-/* Every answer ends with what's being done. These come from the report's own plans,
-   so they're work that's genuinely queued, not reassurance. */
+/* Every answer ends with where things stand, not with an apology.
+   The plan is work that's already mapped out — not a correction being rushed through. */
+function asPlan(fix) {
+  // "We'll build a page around X" -> "building a page around X"
+  let t = String(fix || '').replace(/^we'll\s+/i, '').replace(/^we\s+/i, '').replace(/\.$/, '');
+  t = t.split(/\s+and\s+(?:link|point|then)\b/i)[0].split(' — ')[0].trim();
+  const verb = t.split(' ')[0].toLowerCase();
+  const ing = { build:'building', rewrite:'rewriting', write:'writing', look:'looking at', go:'going',
+    connect:'connecting', keep:'keeping', set:'setting', publish:'publishing', request:'requesting',
+    widen:'widening', find:'finding', refresh:'refreshing', work:'working on', add:'adding',
+    review:'reviewing', fix:'tightening up' }[verb];
+  if (ing) t = ing + t.slice(verb.length);
+  return t;
+}
 function closer(rep, topic, mood) {
   const c = rep.content || {};
-  const fromMoved = (c.moved || []).find(m => m.down && m.fix);
   const room = (c.room || []).filter(r => r.fix);
-  const pick = arr => arr.length ? arr[0] : null;
-  const match = room.find(r => topic && (r.title || '').toLowerCase().includes(topic));
-  const chosen = match || pick(room) || (fromMoved ? { fix: fromMoved.fix } : null);
+  const match = topic ? room.find(r => (r.title || '').toLowerCase().includes(topic)) : null;
+  const fromMoved = (c.moved || []).find(m => m.down && m.fix);
+  const chosen = match || room[0] || (fromMoved ? { fix: fromMoved.fix, title: fromMoved.title } : null);
+
+  let plan = null;
   if (chosen) {
     let fix = chosen.fix;
-    // name the thing rather than saying "this search"
-    const q = (chosen.title || (match && match.title) || '').match(/[“"']([^”"']+)[”"']/);
+    const q = (chosen.title || '').match(/[“"']([^”"']+)[”"']/);
     if (q && /this search|that search|this page|that page/i.test(fix))
       fix = fix.replace(/this search|that search/i, `“${q[1]}”`).replace(/this page|that page/i, `the page behind “${q[1]}”`);
-    const opener = mood === 'good'
-      ? 'Next up, Joel and the team are building on it —'
-      : 'Joel and the team are already on it —';
-    return `${opener} ${fix.charAt(0).toLowerCase() + fix.slice(1)}`;
+    plan = asPlan(fix);
+  } else if ((c.next || []).length) {
+    plan = asPlan(c.next[0]);
   }
-  if ((c.next || []).length) return `Joel and the team are working on ${c.next[0].charAt(0).toLowerCase() + c.next[0].slice(1)} next.`;
-  return `Joel and the team are looking at it, and it'll be in the next report either way.`;
-}
 
+  if (mood === 'good') {
+    return plan
+      ? `Joel and the team are carrying on with the plan from here — ${plan} is the next piece.`
+      : `Joel and the team are carrying on with the plan from here.`;
+  }
+  // anything that moved the wrong way
+  return plan
+    ? `We're keeping a close eye on it — this gets looked at every week, not just at month end, and ${plan} is already part of the plan either way. If it turns into something that needs a change of direction, Joel will say so before you have to ask.`
+    : `We're keeping a close eye on it — this gets looked at every week, not just at month end. If it turns into something that needs a change of direction, Joel will say so before you have to ask.`;
+}
 
 /* "How are things looking?" — the question everyone asks first.
    Lead with what's working, give the honest movement without alarm, then the plan. */
@@ -117,7 +136,7 @@ function overallAnswer(rep) {
 
   if (down.length) {
     bits.push(`${up.length || bits.length ? 'The one to keep an eye on' : 'Worth flagging'}: ${down[0].text}.`);
-    bits.push(`That kind of movement month to month is normal — search traffic shifts with the season, with what competitors are doing, and with how Google weights results that week. One period on its own isn't a trend, and we look at this weekly rather than waiting for the report, so if it turns into one we'll be on it before you'd notice.`);
+    bits.push(`Movement like that month to month is normal — traffic shifts with the season, with what competitors are doing, and with how Google weights results that week. One period on its own isn't a trend.`);
   }
 
   steady.slice(0, 1).forEach(sline => bits.push(`${cap(sline)}.`));
@@ -140,6 +159,31 @@ function answerFromData(question, rep) {
   if (k.money) return { text:
     `That's a question for Joel rather than for me — I can explain what the numbers show, but anything about billing, scope or what's included should come from him directly. I've sent him your question and he'll come back to you.`,
     routed: true, flagged: true, reason: 'billing' };
+
+  // channels and social come first — they look like traffic questions but aren't
+  if ((k.social || k.sources) && n.channels && n.channels.length) {
+    const tot = n.channels.reduce((a, x) => a + x.sessions, 0) || 1;
+    const find = name => n.channels.find(x => x.name === name);
+    const share = ch => Math.round((ch ? ch.sessions : 0) / tot * 100);
+    const bits = [];
+    if (k.social) {
+      const soc = n.channels.filter(x => /social/i.test(x.name));
+      const socTotal = soc.reduce((a, x) => a + x.sessions, 0);
+      const org = find('Organic Search'), dir = find('Direct');
+      bits.push(socTotal
+        ? `Social brought ${nf(socTotal)} of your ${nf(tot)} visits this period, about ${Math.round(socTotal/tot*100)}%.`
+        : `Social isn't showing up as a source of visits this period.`);
+      bits.push(`That's normal for this kind of business, and not a problem on its own — social is where people check you out once they've heard your name, while search is where people looking to buy actually find you.`);
+      if (org) bits.push(`Search is doing the heavy lifting at ${share(org)}%${dir ? `, with ${share(dir)}% coming direct` : ''}, and that's the traffic that compounds rather than disappearing when you stop posting.`);
+      bits.push(`If you'd like social to pull more weight it's a different piece of work — worth raising with Joel so it gets planned properly rather than bolted on.`);
+      return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
+    }
+    const list = n.channels.slice(0, 3).map(x => `${x.name} ${share(x)}%`).join(', ');
+    bits.push(`This period it broke down as ${list}.`);
+    bits.push(`Search traffic is the part that compounds — it keeps arriving without being paid for. Direct means people who already knew your name.`);
+    bits.push(closer(rep, 'search', 'good'));
+    return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
+  }
 
   if (k.overall) { const a = overallAnswer(rep); return { ...a, flagged: !!k.pointed }; }
 
@@ -167,9 +211,9 @@ function answerFromData(question, rep) {
       const lean = impMove === null ? `Without search data connected I can't tell you which of those it was.`
         : impMove <= -5 ? `The figures lean towards the first two — you were shown less often, which usually means demand or competition rather than anything on the site.`
         : `The figures lean towards the last one — you were shown just as often, so it's about which result people chose.`;
-      bits.push(`A dip like this usually comes down to one of three things: fewer people searching at this time of year, a competitor climbing above you, or one of your pages slipping a few places. ${lean}`);
+      bits.push(`Usually it's one of three things: fewer people searching at this time of year, a competitor climbing above you, or a page slipping a few places. ${lean}`);
     }
-    if (ch !== null && ch < 0) bits.push(`For what it's worth, a single quieter period is normal — traffic moves with the season, with competitors, and with how Google weights results that week. We watch this weekly rather than waiting for the report, so a real trend gets caught early.`);
+    if (ch !== null && ch < 0) bits.push(`For what it's worth, a single quieter period is normal — traffic moves with the season, with competitors, and with how Google weights a given week.`);
     if (k.pointed) bits.push(`You're pointing at something longer than one period, which is fair — I've flagged it so Joel looks across the whole run and comes back to you directly.`);
     bits.push(closer(rep, 'search', (ch !== null && ch < 0) ? 'fix' : 'good'));
     return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
@@ -339,11 +383,13 @@ SHAPE OF A GOOD ANSWER
    explains this and which of those the figures point towards — label it as likely, not certain.
 3. What's being done about it. Always finish here.
 
-ALWAYS END WITH THE PLAN
-Every answer closes with what Joel and the team are doing about it, or what they'll look at next.
-Use the plans in the DATA block where one fits — they're real, already decided work. If the question
-is about something going well, close with how it gets built on. Never leave someone with a problem
-and no next step. Never say "there's nothing we can do".
+ALWAYS END WITH WHERE THINGS STAND
+Close with posture, not an apology. When something has moved the wrong way, the line is that it's
+being watched closely — looked at weekly, not just at month end — that a plan is already mapped out,
+and that Joel will say if it ever needs a change of direction. Do NOT promise immediate corrective
+work, and never phrase the plan as a repair for a mistake: the work was already planned, and it
+stands whether this period was up or down. When things are going well, close with the next piece of
+the plan. Never leave someone with a problem and no next step, and never say "there's nothing we can do".
 
 HONESTY
 - Only use figures from the DATA block. Never invent a number, a date, or a comparison.
