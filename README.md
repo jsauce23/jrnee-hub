@@ -76,6 +76,44 @@ missed-call text-backs all create contacts. If their account is mixed, narrow it
 
 Leave both empty to count every new contact.
 
+## Ask JRNEE
+
+Under every section of a report the client sees **"Have a question about this? Ask JRNEE"**.
+It opens in place, offers three questions written for that section, and they can type their own.
+
+Every question and answer is kept. **Questions** tab -> a row per client per report
+("Marco had 3 questions about the August report") -> open it for the full back-and-forth.
+Unread ones carry a blue dot; flagged ones are tinted and listed first.
+
+Two things are never answered and always come to you instead:
+
+- anything about billing, scope, pricing or "am I getting my money's worth"
+- anything legal
+
+Pointed questions — results down over more than one period, frustration, talk of cancelling —
+are answered from the data *and* flagged, so you see them before the email arrives.
+
+### Turning on AI answers
+
+Add `ANTHROPIC_API_KEY` in Render -> Environment. That's the only required step. Optionally set
+`ASK_MODEL` (defaults to `claude-sonnet-5`; `claude-haiku-4-5` is cheaper and faster).
+
+With a key set, questions go to the model with the whole report as context, and it can follow a
+conversation across several questions. Without one — or if the API call fails — answers fall back
+to the figures, so the feature never breaks.
+
+What the model is **not** allowed to do, enforced in code before the call is made:
+
+- billing, pricing, scope or value questions never reach it; they route to you
+- legal questions never reach it; they route to you
+
+And in its instructions: only use figures from the report, never invent a number or a cause,
+never promise results, never claim our work caused a change, say plainly when the data can't
+answer it.
+
+There is a quiet cap of 60 questions per client per hour. If it trips, the client still gets a
+real answer from the figures — they never see a limit or an error.
+
 ## Giving a client API access
 
 Only set this up for clients who ask for it.

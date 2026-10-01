@@ -29,6 +29,7 @@ const APP = fs.readFileSync(path.join(__dirname, 'app.html'), 'utf8');
 const LOGIN = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
 const DOCS = fs.readFileSync(path.join(__dirname, 'api-docs.html'), 'utf8');
 const REPORTS = require('./reports.js');
+const ASK = require('./ask.js');
 const SA = loadServiceAccount();
 const CLIENT_PW = loadClientPasswords();
 const API_KEYS = loadApiKeys();
@@ -714,7 +715,7 @@ http.createServer(async (req, res) => {
       const list = await Promise.all(CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
       return json(res, 200, {
         clients: CLIENTS.map((c, i) => { const { recent, ...rest } = list[i]; return { ...publicClient(c), ...rest }; }),
-        config: { google: !!SA, netlify: !!NETLIFY_TOKEN || !!Object.keys(GHL_TOKENS).length, serviceAccount: SA ? SA.client_email : null }
+        config: { google: !!SA, netlify: !!NETLIFY_TOKEN || !!Object.keys(GHL_TOKENS).length, ask: ASK.hasModel(), serviceAccount: SA ? SA.client_email : null }
       });
     }
 
@@ -726,8 +727,60 @@ http.createServer(async (req, res) => {
       return json(res, 200, {
         ...buildDashboard(clients),
         generated: new Date().toISOString(),
-        config: { google: !!SA, netlify: !!NETLIFY_TOKEN || !!Object.keys(GHL_TOKENS).length, serviceAccount: SA ? SA.client_email : null }
+        config: { google: !!SA, netlify: !!NETLIFY_TOKEN || !!Object.keys(GHL_TOKENS).length, ask: ASK.hasModel(), serviceAccount: SA ? SA.client_email : null }
       });
+    }
+
+    /* ---------- ask jrnee ---------- */
+    if (u.pathname === '/api/ask' && req.method === 'POST') {
+      const body = JSON.parse(await readBody(req) || '{}');
+      const cid = isAdmin ? body.client : ownId;
+      if (!cid) return json(res, 400, { error: 'Which client?' });
+      if (!isAdmin && body.client && body.client !== ownId) return json(res, 403, { error: 'Not allowed.' });
+
+      const rep = REPORTS.getReport(cid, body.report);
+      if (!rep) return json(res, 404, { error: 'That report no longer exists.' });
+      if (!isAdmin && rep.status !== 'published') return json(res, 403, { error: 'Not allowed.' });
+
+      const question = String(body.question || '').trim().slice(0, 600);
+      if (!question) return json(res, 400, { error: 'Ask a question first.' });
+
+      const prior = (ASK.getThread(cid, rep.id) || {}).entries || [];
+      const a = await ASK.answer(question, rep, prior, cid);
+      const entry = { at: new Date().toISOString(), section: String(body.section || '').slice(0, 40),
+        question, answer: a.text, routed: !!a.routed, flagged: !!a.flagged,
+        reason: a.reason || null, engine: a.engine || 'rules',
+        askedBy: isAdmin ? 'jrnee (preview)' : 'client', seen: isAdmin };
+      try { ASK.appendAsk(cid, rep.id, entry, rep.period && rep.period.label); }
+      catch (e) { /* a failed transcript must never block the answer */ }
+      return json(res, 200, { answer: a.text, routed: !!a.routed, flagged: !!a.flagged });
+    }
+
+    if (u.pathname === '/api/ask/suggestions') {
+      const cid = isAdmin ? u.searchParams.get('c') : ownId;
+      const rep = REPORTS.getReport(cid, u.searchParams.get('report'));
+      if (!rep) return json(res, 404, { error: 'Not found.' });
+      if (!isAdmin && rep.status !== 'published') return json(res, 403, { error: 'Not allowed.' });
+      return json(res, 200, { suggestions: ASK.suggestions(u.searchParams.get('section'), rep) });
+    }
+
+    if (u.pathname === '/api/asks') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      const threads = ASK.listThreads().map(t => {
+        const c = CLIENTS.find(x => x.id === t.clientId);
+        return { ...t, clientName: c ? c.name : t.clientId, initials: c ? c.initials : '??' };
+      });
+      return json(res, 200, { threads });
+    }
+
+    if (u.pathname === '/api/asks/thread') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      const cid = u.searchParams.get('c'), rid = u.searchParams.get('report');
+      const t = ASK.getThread(cid, rid);
+      if (!t) return json(res, 404, { error: 'No questions on that report yet.' });
+      if (u.searchParams.get('seen') === '1') ASK.markSeen(cid, rid);
+      const c = CLIENTS.find(x => x.id === cid);
+      return json(res, 200, { ...t, clientName: c ? c.name : cid });
     }
 
     /* ---------- reports ---------- */
