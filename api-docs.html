@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light">
+<title>JRNEE Website Hub — API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A1224;--slate:#56637D;--muted:#8793AB;--line:#E3E8F2;--blue:#1257FF;--soft:#F6F8FC;
+  --sans:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);color:var(--ink);background:#fff;line-height:1.6;-webkit-font-smoothing:antialiased;
+  padding:0 22px env(safe-area-inset-bottom,0px)}
+.wrap{max-width:780px;margin:0 auto;padding:46px 0 90px}
+.brand{display:flex;align-items:center;gap:11px;margin-bottom:34px}
+.brand svg{width:34px;height:34px}
+.brand b{font-weight:800;font-size:18px;letter-spacing:-.04em}
+.brand b i{font-style:normal;color:var(--blue)}
+h1{font-size:34px;font-weight:800;letter-spacing:-.04em;line-height:1.1}
+h2{font-size:21px;font-weight:800;letter-spacing:-.03em;margin:44px 0 12px;padding-top:26px;border-top:1px solid var(--line)}
+h3{font-size:15px;font-weight:800;margin:26px 0 8px;font-family:var(--mono);letter-spacing:-.01em}
+p{color:var(--slate);margin-top:12px}
+ul{color:var(--slate);margin:12px 0 0 20px}
+li{margin-top:6px}
+code{font-family:var(--mono);font-size:13px;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+pre{background:#0A1224;color:#E6ECFA;border-radius:12px;padding:16px 18px;overflow-x:auto;margin-top:14px;
+  font-family:var(--mono);font-size:12.5px;line-height:1.6}
+pre .k{color:#7FB0FF}.c{color:#8FA5C8}
+table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 10px 8px;font-weight:500}
+td{padding:10px;border-top:1px solid var(--line);vertical-align:top;color:var(--slate)}
+td:first-child{color:var(--ink);font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+.note{background:var(--soft);border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:10px;padding:14px 16px;margin-top:18px;font-size:14.5px;color:var(--slate)}
+.note b{color:var(--ink)}
+.foot{margin-top:50px;padding-top:22px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="#1257FF"/><path d="M11 10.5 H23 V20.5 A5 5 0 0 1 13 20.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/><circle cx="11" cy="10.5" r="2.9" fill="#fff"/></svg>
+    <b>JRNEE<i>.ai</i></b>
+  </div>
+
+  <h1>Website Hub API</h1>
+  <p>A read-only API for your own website numbers — traffic, Google search performance, and form leads.
+     Everything is JSON. Your key only ever returns your own data.</p>
+
+  <div class="note"><b>Keep your key on your server.</b> Anyone who has it can read your data, so don't
+    put it in a web page, an app, or anything a visitor could view the source of.</div>
+
+  <h2>Getting started</h2>
+  <p>JRNEE will give you a key that looks like <code>jrnee_live_…</code>. Send it with every request:</p>
+<pre><span class="c"># check that your key works</span>
+curl https://YOUR-HUB-ADDRESS/v1/ping \
+  -H <span class="k">"Authorization: Bearer YOUR_KEY"</span></pre>
+  <p>A working key replies with your client name. Everything below uses the same header.</p>
+
+  <h2>Endpoints</h2>
+
+  <h3>GET /v1/report</h3>
+  <p>Everything in one call: traffic, where visitors came from, devices, top pages, Google search performance and a lead count.</p>
+  <table>
+    <tr><th>Query</th><th>Meaning</th></tr>
+    <tr><td>days</td><td><code>7</code>, <code>28</code> or <code>90</code>. Defaults to 28. Each number is also compared with the same length of time before it.</td></tr>
+  </table>
+<pre>curl "https://YOUR-HUB-ADDRESS/v1/report?days=28" \
+  -H <span class="k">"Authorization: Bearer YOUR_KEY"</span></pre>
+<pre>{
+  <span class="k">"client"</span>: { "id": "acme", "name": "Acme Co", "domain": "acme.com" },
+  <span class="k">"range"</span>: { "days": 28, "start": "2026-08-25", "end": "2026-09-21" },
+  <span class="k">"connected"</span>: { "analytics": true, "searchConsole": true, "leads": true },
+  <span class="k">"traffic"</span>: {
+    "visitors": { "current": 1840, "previous": 1520 },
+    "visits":   { "current": 2310, "previous": 1980 },
+    "pageviews":{ "current": 5420, "previous": 4610 },
+    "averageVisitSeconds": 96,
+    "engagementRate": 0.6412,
+    "daily": [ { "date": "2026-08-25", "visitors": 54 }, … ]
+  },
+  <span class="k">"sources"</span>:  [ { "channel": "Organic Search", "visits": 1210 }, … ],
+  <span class="k">"devices"</span>:  [ { "device": "mobile", "visits": 1640 }, … ],
+  <span class="k">"topPages"</span>: [ { "path": "/", "views": 2100, "averageSeconds": 71 }, … ],
+  <span class="k">"search"</span>: {
+    "clicks":          { "current": 420, "previous": 350 },
+    "impressions":     { "current": 9800, "previous": 8700 },
+    "ctr": 0.0429,
+    "averagePosition": { "current": 11.4, "previous": 14.2 },
+    "dataThrough": "2026-09-18",
+    "topQueries": [ { "query": "…", "clicks": 62, "impressions": 900, "position": 4.1 }, … ],
+    "topPages":   [ { "url": "https://acme.com/…", "clicks": 88, "impressions": 1200, "position": 6.3 }, … ]
+  },
+  <span class="k">"leads"</span>: { "count": { "current": 31, "previous": 24 } }
+}</pre>
+  <p>If a source isn't connected yet, that section comes back as <code>null</code> rather than disappearing,
+     so your code can check for it. Google Search Console data runs two to three days behind — <code>dataThrough</code> tells you how current it is.</p>
+
+  <h3>GET /v1/leads</h3>
+  <p>Every form submission in the period, newest first. Only works if your key includes lead access.</p>
+<pre>curl "https://YOUR-HUB-ADDRESS/v1/leads?days=28" \
+  -H <span class="k">"Authorization: Bearer YOUR_KEY"</span></pre>
+<pre>{
+  "count": { "current": 31, "previous": 24 },
+  "items": [
+    {
+      "id": "…",
+      "receivedAt": "2026-09-20T18:42:11.000Z",
+      "form": "contact",
+      "name": "…", "email": "…", "phone": "…",
+      "message": "…"
+    }, …
+  ]
+}</pre>
+
+  <h3>GET /v1/ping</h3>
+  <p>Confirms your key works and tells you whether it has lead access.</p>
+
+  <h2>Responses</h2>
+  <table>
+    <tr><th>Status</th><th>Meaning</th></tr>
+    <tr><td>200</td><td>Fine. If something upstream was unavailable, a <code>notes</code> field explains which part.</td></tr>
+    <tr><td>401</td><td>Key missing or wrong.</td></tr>
+    <tr><td>403</td><td>Your key can read numbers but not lead details.</td></tr>
+    <tr><td>429</td><td>Over 120 requests in an hour. Wait and retry.</td></tr>
+  </table>
+
+  <h2>Things worth knowing</h2>
+  <ul>
+    <li>Numbers are cached for about 10 minutes, so calling more often won't get you fresher data.</li>
+    <li>Requesting every 15 minutes or so is plenty. Anything more just burns your rate limit.</li>
+    <li>Only <code>GET</code> is supported. This API reads; it never writes.</li>
+    <li>Your key is tied to one client. There's no way to reach another company's data with it.</li>
+    <li>Need a key rotated? Ask JRNEE and the old one stops working immediately.</li>
+  </ul>
+
+  <div class="foot">JRNEE Technologies LLC · Questions: hello@jrnee.ai</div>
+</div>
+</body>
+</html>

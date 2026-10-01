@@ -7,6 +7,9 @@
 //   SESSION_SECRET          any long random string (keeps you logged in across restarts)
 //   GOOGLE_SERVICE_ACCOUNT  the whole Google service-account JSON key, pasted in
 //   NETLIFY_TOKEN           a Netlify personal access token (for form leads)
+//   API_KEYS                read-only API access, one per client:
+//                             marco:jrnee_live_xxxxx          (numbers only)
+//                             marco:jrnee_live_xxxxx:leads    (numbers + lead details)
 
 const http = require('http');
 const crypto = require('crypto');
@@ -22,8 +25,26 @@ const SESSION_HOURS = 12;
 const CLIENTS = JSON.parse(fs.readFileSync(path.join(__dirname, 'clients.json'), 'utf8'));
 const APP = fs.readFileSync(path.join(__dirname, 'app.html'), 'utf8');
 const LOGIN = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
+const DOCS = fs.readFileSync(path.join(__dirname, 'api-docs.html'), 'utf8');
+const REPORTS = require('./reports.js');
 const SA = loadServiceAccount();
 const CLIENT_PW = loadClientPasswords();
+const API_KEYS = loadApiKeys();
+
+function loadApiKeys() {
+  const raw = (process.env.API_KEYS || '').trim();
+  const map = {};
+  if (!raw) return map;
+  raw.split(/[\n,]+/).forEach(entry => {
+    const p = entry.split(':').map(x => x.trim());
+    const [id, key, scope] = p;
+    if (!id || !key) return;
+    if (!CLIENTS.some(c => c.id === id)) { console.error(`API_KEYS has "${id}" but clients.json has no client with that id`); return; }
+    if (key.length < 20) console.error(`API key for "${id}" is short — use something long and random`);
+    map[key] = { id, leads: (scope || '').toLowerCase() === 'leads' };
+  });
+  return map;
+}
 
 function loadClientPasswords() {
   const raw = (process.env.CLIENT_PASSWORDS || '').trim();
@@ -288,6 +309,44 @@ async function netlifyLeads(siteId, n) {
   };
 }
 
+async function netlifyLeadsRange(siteId, period) {
+  if (!NETLIFY_TOKEN) throw new Error('Netlify is not connected on the server yet.');
+  const from = new Date(period.prevStart + 'T00:00:00Z').getTime();
+  let all = [];
+  for (let page = 1; page <= 8; page++) {
+    const r = await fetch(`https://api.netlify.com/api/v1/sites/${encodeURIComponent(siteId)}/submissions?per_page=100&page=${page}`,
+      { headers: { Authorization: 'Bearer ' + NETLIFY_TOKEN } });
+    if (r.status === 401) throw new Error('The Netlify token was rejected.');
+    if (r.status === 404) throw new Error("Netlify can't find that site.");
+    if (!r.ok) throw new Error('Netlify request failed (' + r.status + ').');
+    const a = await r.json();
+    all = all.concat(a);
+    if (a.length < 100 || new Date(a[a.length - 1].created_at).getTime() < from) break;
+  }
+  const inRange = (s, a, b) => {
+    const t = new Date(s.created_at).getTime();
+    return t >= new Date(a + 'T00:00:00Z').getTime() && t <= new Date(b + 'T23:59:59Z').getTime();
+  };
+  const cur = all.filter(s => inRange(s, period.start, period.end));
+  const prev = all.filter(s => inRange(s, period.prevStart, period.prevEnd));
+  return { count: { cur: cur.length, prev: prev.length },
+    items: cur.slice(0, 40).map(s => { const d = s.data || {};
+      return { when:s.created_at, form:s.form_name || '',
+        name:d.name || [d.first_name,d.last_name].filter(Boolean).join(' ') || s.name || '',
+        email:d.email || s.email || '', phone:d.phone || d.telephone || '', message:d.message || d.comments || '' }; }) };
+}
+
+function reportIO(c) {
+  return {
+    gaId: gaId(c) || null,
+    gscSite: c.gscSiteUrl || null,
+    netlifySite: c.netlifySiteId || null,
+    ga: body => ga(gaId(c), body),
+    gsc: body => gsc(c.gscSiteUrl, body),
+    leads: period => netlifyLeadsRange(c.netlifySiteId, period)
+  };
+}
+
 /* ---------------- report assembly + cache ---------------- */
 const publicClient = c => ({ id: c.id, name: c.name, legal: c.legal || c.name, domain: c.domain || '', initials: c.initials || c.name.slice(0, 2).toUpperCase(), status: c.status || '' });
 const gaId = c => String(c.ga4PropertyId || '').replace(/\D/g, '');
@@ -380,6 +439,99 @@ async function cached(key, fn, fresh) {
   return v;
 }
 
+/* ---------------- read-only public API (/v1) ---------------- */
+const apiHits = new Map();
+function apiAllowed(key) {
+  const now = Date.now();
+  const r = apiHits.get(key) || { n: 0, t: now };
+  if (now - r.t > 3600e3) { r.n = 0; r.t = now; }
+  r.n++; apiHits.set(key, r);
+  if (apiHits.size > 5000) apiHits.clear();
+  return r.n <= 120;                     // 120 requests an hour per key
+}
+function dayStamp(n, i) { const d = new Date(); d.setUTCDate(d.getUTCDate() - (n - i)); return d.toISOString().slice(0, 10); }
+
+function shapeReport(r, days, includeLeads) {
+  const ga = r.ga, gs = r.gsc, ld = r.leads;
+  const pair = (a, b) => ({ current: a, previous: b });
+  const out = {
+    client: { id: r.client.id, name: r.client.name, domain: r.client.domain },
+    range: { days, start: dayStamp(days, 0), end: dayStamp(days, days - 1) },
+    generated: r.generated,
+    connected: { analytics: !!ga, searchConsole: !!gs, leads: !!ld },
+    traffic: ga ? {
+      visitors: pair(Math.round(ga.totals.cur.activeUsers), Math.round(ga.totals.prev.activeUsers)),
+      visits: pair(Math.round(ga.totals.cur.sessions), Math.round(ga.totals.prev.sessions)),
+      pageviews: pair(Math.round(ga.totals.cur.screenPageViews), Math.round(ga.totals.prev.screenPageViews)),
+      averageVisitSeconds: Math.round(ga.totals.cur.averageSessionDuration),
+      engagementRate: +(ga.totals.cur.engagementRate || 0).toFixed(4),
+      daily: ga.series.cur.map((v, i) => ({ date: dayStamp(days, i), visitors: v }))
+    } : null,
+    sources: ga ? ga.channels.map(c => ({ channel: c.name, visits: c.sessions })) : null,
+    devices: ga ? ga.devices.map(d => ({ device: d.name, visits: d.sessions })) : null,
+    topPages: ga ? ga.pages.map(p => ({ path: p.path, views: p.views, averageSeconds: Math.round(p.avgTime) })) : null,
+    search: gs ? {
+      clicks: pair(gs.totals.cur.clicks, gs.totals.prev.clicks),
+      impressions: pair(gs.totals.cur.impressions, gs.totals.prev.impressions),
+      ctr: +(gs.totals.cur.ctr || 0).toFixed(4),
+      averagePosition: pair(+gs.totals.cur.position.toFixed(2), +gs.totals.prev.position.toFixed(2)),
+      dataThrough: gs.range.endDate,
+      topQueries: gs.queries.map(q => ({ query: q.query, clicks: q.clicks, impressions: q.impressions, position: +q.position.toFixed(2) })),
+      topPages: gs.pages.map(p => ({ url: p.page, clicks: p.clicks, impressions: p.impressions, position: +p.position.toFixed(2) }))
+    } : null,
+    leads: ld ? { count: pair(ld.count.cur, ld.count.prev) } : null
+  };
+  if (ld && includeLeads) out.leads.items = ld.leads.map(l => ({
+    id: l.id, receivedAt: l.when, form: l.form, name: l.name, email: l.email, phone: l.phone, message: l.message
+  }));
+  const notes = {};
+  Object.entries(r.errors || {}).forEach(([k, v]) => { if (v && v !== 'not_connected') notes[k] = v; });
+  if (Object.keys(notes).length) out.notes = notes;
+  return out;
+}
+
+async function apiV1(req, res, u) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, X-API-Key, Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  if (u.pathname === '/v1' || u.pathname === '/v1/' || u.pathname === '/v1/docs') return html(res, 200, DOCS);
+  if (req.method !== 'GET') return json(res, 405, { error: 'Use GET.' });
+
+  const auth = req.headers.authorization || '';
+  const key = (auth.toLowerCase().startsWith('bearer ') ? auth.slice(7) : req.headers['x-api-key'] || '').trim();
+  const grant = key && API_KEYS[key];
+  if (!grant) return json(res, 401, { error: 'Missing or invalid API key. Send it as: Authorization: Bearer YOUR_KEY' });
+  if (!apiAllowed(key)) return json(res, 429, { error: 'Rate limit reached — 120 requests an hour. Try again shortly.' });
+
+  const c = CLIENTS.find(x => x.id === grant.id);
+  if (!c) return json(res, 404, { error: 'That client no longer exists.' });
+
+  let days = parseInt(u.searchParams.get('days'), 10);
+  if (![7, 28, 90].includes(days)) days = 28;
+
+  if (u.pathname === '/v1/ping') return json(res, 200, { ok: true, client: { id: c.id, name: c.name }, leadsAccess: grant.leads });
+
+  if (u.pathname === '/v1/report') {
+    const r = await cached(`r:${c.id}:${days}`, () => buildReport(c, days));
+    return json(res, 200, shapeReport(r, days, grant.leads));
+  }
+
+  if (u.pathname === '/v1/leads') {
+    if (!grant.leads) return json(res, 403, { error: 'This key can read numbers but not lead details.' });
+    const r = await cached(`r:${c.id}:${days}`, () => buildReport(c, days));
+    if (!r.leads) return json(res, 200, { client: { id: c.id, name: c.name }, count: null, items: [], note: r.errors.leads === 'not_connected' ? 'Leads are not connected for this client.' : r.errors.leads });
+    return json(res, 200, {
+      client: { id: c.id, name: c.name },
+      range: { days, start: dayStamp(days, 0), end: dayStamp(days, days - 1) },
+      count: { current: r.leads.count.cur, previous: r.leads.count.prev },
+      items: r.leads.leads.map(l => ({ id: l.id, receivedAt: l.when, form: l.form, name: l.name, email: l.email, phone: l.phone, message: l.message }))
+    });
+  }
+
+  return json(res, 404, { error: 'Unknown endpoint. Try /v1/report, /v1/leads or /v1/ping.' });
+}
+
 /* ---------------- http ---------------- */
 function headers(res) {
   res.setHeader('X-Frame-Options', 'DENY');
@@ -392,7 +544,7 @@ const send = (res, code, type, body) => { res.writeHead(code, { 'Content-Type': 
 const html = (res, code, body) => send(res, code, 'text/html; charset=utf-8', body);
 const json = (res, code, obj) => send(res, code, 'application/json', JSON.stringify(obj));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-function readBody(req, limit = 10000) {
+function readBody(req, limit = 300000) {
   return new Promise((resolve, reject) => {
     let d = '';
     req.on('data', c => { d += c; if (d.length > limit) { req.destroy(); reject(new Error('too big')); } });
@@ -408,6 +560,7 @@ http.createServer(async (req, res) => {
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'x';
   try {
     if (u.pathname === '/health') return send(res, 200, 'text/plain', 'ok');
+    if (u.pathname === '/v1' || u.pathname.startsWith('/v1/')) return apiV1(req, res, u);
 
     if (u.pathname === '/login' && req.method === 'POST') {
       const a = attempts(ip);
@@ -466,6 +619,72 @@ http.createServer(async (req, res) => {
         generated: new Date().toISOString(),
         config: { google: !!SA, netlify: !!NETLIFY_TOKEN, serviceAccount: SA ? SA.client_email : null }
       });
+    }
+
+    /* ---------- reports ---------- */
+    if (u.pathname === '/api/reports') {
+      const asked = u.searchParams.get('c');
+      if (!isAdmin && asked && asked !== ownId) return json(res, 403, { error: 'Not allowed.' });
+      const id = isAdmin ? asked : ownId;
+      if (!id) return json(res, 400, { error: 'Which client?' });
+      return json(res, 200, { reports: REPORTS.listReports(id, !isAdmin) });
+    }
+
+    if (u.pathname === '/api/report/item') {
+      const cid = isAdmin ? u.searchParams.get('c') : ownId;
+      if (!isAdmin && cid !== ownId) return json(res, 403, { error: 'Not allowed.' });
+      const rep = REPORTS.getReport(cid, u.searchParams.get('id'));
+      if (!rep) return json(res, 404, { error: 'That report no longer exists.' });
+      if (!isAdmin && rep.status !== 'published') return json(res, 403, { error: 'Not allowed.' });
+      return json(res, 200, rep);
+    }
+
+    if (u.pathname.startsWith('/api/report/') && req.method === 'POST') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      const body = JSON.parse(await readBody(req) || '{}');
+
+      if (u.pathname === '/api/report/prepare') {
+        const c = CLIENTS.find(x => x.id === body.client);
+        if (!c) return json(res, 404, { error: 'Unknown client.' });
+        const period = REPORTS.resolvePeriod(body.period, body.start, body.end);
+        const numbers = await REPORTS.gatherNumbers(c, period, reportIO(c));
+        const n = REPORTS.buildNarrative(numbers, period);
+        return json(res, 200, {
+          id: REPORTS.newId(), clientId: c.id, status: 'draft',
+          client: publicClient(c), period, numbers,
+          content: { headline:n.headline, summary:n.summary, groups:[], moved:n.moved, room:n.room, next:n.suggested },
+          work: '', plans: '', suggested: n.suggested,
+          createdAt: new Date().toISOString(), publishedAt: null
+        });
+      }
+
+      if (u.pathname === '/api/report/group') {
+        return json(res, 200, { groups: REPORTS.groupWork(body.work) });
+      }
+
+      if (u.pathname === '/api/report/save' || u.pathname === '/api/report/publish') {
+        const rep = body.report;
+        if (!rep || !rep.id || !CLIENTS.some(x => x.id === rep.clientId)) return json(res, 400, { error: 'Bad report.' });
+        if (u.pathname === '/api/report/publish') {
+          rep.status = 'published';
+          rep.publishedAt = rep.publishedAt || new Date().toISOString();
+        }
+        rep.savedAt = new Date().toISOString();
+        REPORTS.saveReport(rep);
+        return json(res, 200, { ok: true, id: rep.id, status: rep.status });
+      }
+
+      if (u.pathname === '/api/report/unpublish') {
+        const rep = REPORTS.getReport(body.client, body.id);
+        if (!rep) return json(res, 404, { error: 'Not found.' });
+        rep.status = 'draft';
+        REPORTS.saveReport(rep);
+        return json(res, 200, { ok: true });
+      }
+
+      if (u.pathname === '/api/report/delete') {
+        return json(res, 200, { ok: REPORTS.deleteReport(body.client, body.id) });
+      }
     }
 
     if (u.pathname === '/api/report') {

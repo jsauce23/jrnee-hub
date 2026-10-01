@@ -11,6 +11,8 @@ Private back office for client website analytics. Runs on Render as a Web Servic
 | `SESSION_SECRET` | Any long random string |
 | `GOOGLE_SERVICE_ACCOUNT` | The full contents of the Google service-account JSON key |
 | `NETLIFY_TOKEN` | Netlify personal access token |
+| `API_KEYS` | Read-only API keys, one per client (see below). Leave unset if nobody needs the API |
+| `DATA_DIR` | Where reports are stored. Set to `/var/data` and attach a Render disk at that path |
 
 Never commit the Google key file or any of these values to GitHub.
 
@@ -22,6 +24,39 @@ Never commit the Google key file or any of these values to GitHub.
   enforces this — they can't reach the client list or another client's report even by editing the URL.
 - Every password must be different. Commas aren't allowed inside a password.
 - Remove a client from `CLIENT_PASSWORDS` and anyone logged in as them is signed out immediately.
+
+## Reports
+
+Reports are saved as files under `DATA_DIR`. **On Render you must attach a disk**, or every
+deploy wipes them:
+
+1. Render -> jrnee-hub -> **Disks** -> **Add Disk**
+2. Name `hub-data`, mount path `/var/data`, size 1 GB
+3. **Environment** -> add `DATA_DIR` = `/var/data`
+
+Building one: **Reports** tab -> pick a client -> **New report** -> choose the period ->
+**Pull the numbers**. Paste what you did and what's next, hit **Build the report**, edit any
+text in place, then **Save draft** or **Publish to client**.
+
+Clients only ever see published reports, under their own **Reports** tab. Unpublishing hides
+a report again immediately.
+
+Periods available: last month, this month so far, last 30 days, last 90 days, or custom dates.
+Every period is compared against the same number of days immediately before it.
+
+## Giving a client API access
+
+Only set this up for clients who ask for it.
+
+1. Make a long random key, e.g. `jrnee_live_` plus 32 random characters.
+2. In Render -> **Environment**, add or edit `API_KEYS`:
+   - `marco:jrnee_live_xxxxx` - numbers only
+   - `marco:jrnee_live_xxxxx:leads` - numbers plus lead names, emails, phones and messages
+   - Separate multiple clients with commas.
+3. Send them the key and the docs link: `https://your-hub-address/v1`
+
+Keys are read-only, limited to 120 requests an hour, and can only ever return that client's
+own data. Removing a key from `API_KEYS` switches it off immediately.
 
 ## Adding a client
 
