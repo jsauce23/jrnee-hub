@@ -354,8 +354,160 @@ function buildNarrative(n, period) {
 
   if (!suggested.length) suggested.push('Keep publishing and building out the pages that are ranking');
 
-  return { headline, summary, moved, room, suggested, highlights: highlights.slice(0, 3), keywords: kw };
+  return { headline, summary, moved, room, suggested, highlights: highlights.slice(0, 3), keywords: kw,
+    explain: buildExplain(n, period, kw) };
 }
+
+
+/* ---------------- explanations built from this client's own numbers ---------------- */
+const ordinal = d => { const n = d % 100; if (n>=11&&n<=13) return d+'th';
+  return d + ({1:'st',2:'nd',3:'rd'}[d%10] || 'th'); };
+const dayName = s => ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(s+'T12:00:00Z').getUTCDay()];
+const fromYmd = v => `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
+const nf = x => Math.round(x).toLocaleString('en-US');
+
+function buildExplain(n, period, kw) {
+  const E = {};
+  const lead = n.leads || n.keyEvents;
+  const pc = (c,p) => (p ? Math.round((c-p)/p*100) : null);
+
+  /* the four headline numbers, read back to them */
+  if (n.visitors || lead) {
+    const out = [];
+    if (lead && n.visitors && n.visitors.cur) {
+      const one = Math.round(n.visitors.cur / Math.max(lead.cur,1));
+      out.push({ t:'How many visitors turned into enquiries',
+        text:`${nf(lead.cur)} ${lead.cur===1?'person':'people'} got in touch out of ${nf(n.visitors.cur)} who visited — roughly 1 in every ${one}. For a local service business anything better than about 1 in 50 is a site doing its job.` });
+      if (lead.prev && n.visitors.prev) {
+        const was = Math.round(n.visitors.prev / Math.max(lead.prev,1));
+        out.push({ text: one < was
+          ? `That's better than the period before, when it took about ${was} visitors to produce one enquiry. Same traffic is now worth more.`
+          : one > was
+            ? `The period before it took about ${was} visitors to get an enquiry, so this stretch converted a little less well even though the traffic was there.`
+            : `That's the same rate as the period before — the change came from traffic, not from the site itself.` });
+      }
+    }
+    if (n.visitors && n.visitors.prev) {
+      const v = pc(n.visitors.cur, n.visitors.prev);
+      out.push({ t:'Visitors', text:`${nf(n.visitors.cur)} people, ${v>=0?'up':'down'} ${Math.abs(v)}% on ${nf(n.visitors.prev)} ${period.prevPhrase}.` });
+    }
+    if (n.position) out.push({ t:'Average position',
+      text:`You sit at position ${n.position.cur} on average${n.position.prev?`, from ${n.position.prev} ${period.prevPhrase}`:''}. Lower is better — page one of Google ends at about position 10.` });
+    E.glance = out;
+  }
+
+  /* the shape of the period */
+  if (n.series && n.series.length > 2) {
+    const days = n.series.map(d => ({ d: fromYmd(d.date), v: d.v }));
+    const best = days.reduce((a,b) => b.v > a.v ? b : a);
+    const worst = days.reduce((a,b) => b.v < a.v ? b : a);
+    const we = days.filter(x => [0,6].includes(new Date(x.d+'T12:00:00Z').getUTCDay()));
+    const wd = days.filter(x => ![0,6].includes(new Date(x.d+'T12:00:00Z').getUTCDay()));
+    const avg = a => a.length ? a.reduce((s,x)=>s+x.v,0)/a.length : 0;
+    const half = Math.floor(days.length/2);
+    const first = avg(days.slice(0,half)), second = avg(days.slice(half));
+    const out = [
+      { t:'Your busiest day', text:`${dayName(best.d)} the ${ordinal(+best.d.slice(8,10))}, with ${nf(best.v)} visitors. The quietest was ${dayName(worst.d)} the ${ordinal(+worst.d.slice(8,10))} on ${nf(worst.v)}.` }
+    ];
+    if (we.length && wd.length) {
+      const diff = Math.round((1 - avg(we)/Math.max(avg(wd),0.01)) * 100);
+      out.push({ t:'Weekdays against weekends',
+        text: diff > 10 ? `Weekends run about ${diff}% quieter than weekdays, which is normal for this kind of business — people look for you during the working week.`
+          : diff < -10 ? `Weekends are actually busier than weekdays here, by about ${Math.abs(diff)}%. Worth knowing when you decide who covers the phone.`
+          : `Weekdays and weekends are running at about the same level, which is unusual and worth keeping an eye on.` });
+    }
+    if (first && second) {
+      const shift = Math.round((second-first)/first*100);
+      out.push({ t:'Direction within the period',
+        text: Math.abs(shift) < 8 ? `Traffic held steady across the whole stretch — no sudden drops or spikes.`
+          : shift > 0 ? `The second half ran about ${shift}% ahead of the first half, so it was building as the period went on.`
+          : `The second half ran about ${Math.abs(shift)}% behind the first half. One slow stretch isn't a trend, but we'll watch it next period.` });
+    }
+    E.chart = out;
+  }
+
+  /* where they came from */
+  if (n.channels && n.channels.length) {
+    const tot = n.channels.reduce((a,c)=>a+c.sessions,0) || 1;
+    const top = n.channels[0], second = n.channels[1];
+    const share = Math.round(top.sessions/tot*100);
+    const out = [{ t:'Your biggest source',
+      text:`${CH_PLAIN[top.name]||top.name} brought ${share}% of your visits — ${nf(top.sessions)} of ${nf(tot)}.${second?` Next was ${CH_PLAIN[second.name]||second.name} on ${Math.round(second.sessions/tot*100)}%.`:''}` }];
+    const organic = n.channels.find(c => c.name === 'Organic Search');
+    if (organic) {
+      const os = Math.round(organic.sessions/tot*100);
+      out.push({ t:'What that means for you', text: os >= 50
+        ? `Over half your traffic now comes from people searching rather than already knowing you. That's the traffic that compounds — it keeps arriving without you paying for it.`
+        : os >= 25 ? `About ${os}% comes from search. Growing that is the cheapest long-term traffic you can get, and it's where most of our effort goes.`
+        : `Only ${os}% comes from search at the moment, so most people arriving already know your name. There's room to be found by people who don't yet.` });
+    }
+    if (share > 70) out.push({ text:`One source accounting for ${share}% is worth noting — if it changes, the whole figure moves with it. Spreading that out is something we work towards.` });
+    E.sources = out;
+  }
+
+  /* devices */
+  if (n.devices && n.devices.length) {
+    const tot = n.devices.reduce((a,d)=>a+d.sessions,0) || 1;
+    const mob = n.devices.find(d => d.name === 'mobile');
+    const share = mob ? Math.round(mob.sessions/tot*100) : 0;
+    const out = [{ t:'What people were holding',
+      text: n.devices.map(d => `${d.name} ${Math.round(d.sessions/tot*100)}%`).join(', ') + `.` }];
+    if (share >= 60) out.push({ text:`${share}% on a phone means the mobile version effectively is your website. It's the first thing we check after any change — how fast it loads on mobile data, and whether your number can be tapped without hunting for it.` });
+    else if (share) out.push({ text:`At ${share}% mobile you have a real mix, so both versions have to hold up. Desktop visitors tend to read more and compare, which suits longer pages.` });
+    E.devices = out;
+  }
+
+  /* google */
+  if (n.clicks && n.impressions) {
+    const ctr = n.impressions.cur ? (n.clicks.cur / n.impressions.cur * 100) : 0;
+    const out = [{ t:'Shown, and clicked',
+      text:`Google put your site in front of people ${nf(n.impressions.cur)} times and ${nf(n.clicks.cur)} of them clicked — about ${ctr.toFixed(1)} in every 100. Between 2 and 5 in 100 is typical; above that usually means your titles are doing their job.` }];
+    if (kw && kw.top && kw.top.length) {
+      const b = kw.top[0];
+      out.push({ t:'Your strongest search',
+        text:`“${b.q}” — position ${b.position.toFixed(1)}, shown ${nf(b.impressions)} times, ${nf(b.clicks)} clicks. That single search is doing a disproportionate amount of the work.` });
+    }
+    if (kw) out.push({ t:'Page one',
+      text:`${kw.pageOne} of the ${kw.total} searches you appear for are on page one${kw.pageOnePrev!=null?`, against ${kw.pageOnePrev} ${period.prevPhrase}`:''}. Almost nobody clicks past page one, so that count matters more than the total.` });
+    if (kw && kw.fresh && kw.fresh.length) out.push({ t:'New ground',
+      text:`You started showing up for ${kw.fresh.length} search${kw.fresh.length===1?'':'es'} you didn't appear for at all before, including “${kw.fresh[0].q}”.` });
+    E.search = out;
+  }
+
+  /* pages */
+  if (n.pages && n.pages.length) {
+    const top = n.pages[0];
+    const stickiest = n.pages.slice().sort((a,b)=>b.avgTime-a.avgTime)[0];
+    const out = [{ t:'Most visited',
+      text:`${top.path} with ${nf(top.views)} views, average ${mmss(top.avgTime)} on the page.` }];
+    if (stickiest && stickiest.path !== top.path) out.push({ t:'Held attention longest',
+      text:`${stickiest.path}, averaging ${mmss(stickiest.avgTime)}. Pages people stay on are the ones worth sending traffic to.` });
+    const quick = n.pages.find(p => p.views >= 30 && p.avgTime < 20);
+    if (quick) out.push({ t:'Worth a look',
+      text:`${quick.path} got ${nf(quick.views)} views but people left after ${mmss(quick.avgTime)}. Either it answered them instantly or it wasn't what they expected — we'll work out which.` });
+    E.pages = out;
+  }
+
+  /* enquiries */
+  if (lead) {
+    const out = [{ t:'How many, and the direction',
+      text:`${nf(lead.cur)} ${lead.cur===1?'enquiry':'enquiries'} this period${lead.prev?`, against ${nf(lead.prev)} ${period.prevPhrase}`:''}.` }];
+    if (n.leadItems && n.leadItems.length) {
+      const withPhone = n.leadItems.filter(l => l.phone).length;
+      const weekend = n.leadItems.filter(l => [0,6].includes(new Date(l.when).getDay())).length;
+      if (withPhone) out.push({ t:'How to reach them',
+        text:`${withPhone} of the ${n.leadItems.length} listed left a phone number. A call back the same day beats an email every time.` });
+      if (weekend) out.push({ t:'Weekend enquiries',
+        text:`${weekend} came in over a weekend. Those are the ones most often missed, and the ones most likely to call someone else by Monday.` });
+    }
+    E.leads = out;
+  }
+
+  return E;
+}
+const CH_PLAIN = { 'Organic Search':'Google and other search engines','Direct':'People coming straight to the site',
+  'Organic Social':'Social media','Referral':'Links from other websites','Paid Search':'Paid search ads',
+  'Paid Social':'Paid social ads','Email':'Email','Organic Maps':'Google Maps','Unassigned':'Unidentified traffic' };
 
 /* ---------------- storage ---------------- */
 function ensureDirs() {
@@ -396,5 +548,5 @@ function deleteReport(clientId, id) {
 }
 const newId = () => new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,7);
 
-module.exports = { resolvePeriod, gatherNumbers, groupWork, buildNarrative, analyseKeywords,
+module.exports = { resolvePeriod, gatherNumbers, groupWork, buildNarrative, analyseKeywords, buildExplain,
   listReports, getReport, saveReport, deleteReport, newId, DATA_DIR, pct, mmss };

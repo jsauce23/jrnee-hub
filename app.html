@@ -401,6 +401,21 @@ body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surf
 .mvd{box-shadow:0 4px 12px -6px color-mix(in srgb,var(--good) 70%,transparent)}
 .rv{opacity:0;transform:translateY(14px)}
 .rv.in{opacity:1;transform:none;transition:opacity .6s cubic-bezier(.2,.7,.3,1),transform .6s cubic-bezier(.2,.7,.3,1)}
+.brandfoot{margin-top:16px;text-align:center;padding:40px 26px 32px;
+  background:linear-gradient(160deg,#070E1E,#102046 55%,#17326F);
+  border-color:transparent;color:#fff;position:relative;overflow:hidden}
+.brandfoot::before{content:"";position:absolute;left:50%;top:-120px;width:620px;height:420px;transform:translateX(-50%);
+  background:radial-gradient(closest-side,rgba(34,211,238,.26),rgba(124,92,255,.16) 55%,transparent 75%)}
+.brandfoot>*{position:relative}
+.brandfoot .bmark{width:62px;height:62px;filter:drop-shadow(0 12px 26px rgba(18,87,255,.65))}
+.bword{font-size:clamp(34px,6vw,50px);font-weight:800;letter-spacing:-.05em;margin-top:14px;line-height:1}
+.bword i{font-style:normal;color:#6FA0FF}
+.btag{color:#A8C0E4;font-size:14.5px;margin-top:12px;max-width:44ch;margin-left:auto;margin-right:auto;line-height:1.5}
+.bline{height:4px;border-radius:3px;margin:24px auto 20px;max-width:360px;
+  background:linear-gradient(90deg,#22D3EE,#1257FF,#FBBF24,#34D399,#A78BFA,#FF4D8D)}
+.bmeta{display:flex;justify-content:center;gap:10px 22px;flex-wrap:wrap;font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#7D96BE}
+@media print{ .brandfoot{-webkit-print-color-adjust:exact;print-color-adjust:exact;break-inside:avoid} }
 .closing{background:linear-gradient(135deg,#0A1224,#15306E);color:#fff;border-color:transparent;position:relative;overflow:hidden}
 .closing::after{content:"";position:absolute;right:-120px;top:-140px;width:420px;height:420px;
   background:radial-gradient(closest-side,rgba(34,211,238,.3),transparent 70%)}
@@ -430,6 +445,10 @@ body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surf
 .xpb{padding:2px 16px 16px;font-size:15.3px;line-height:1.65;color:var(--slate)}
 .xpb p+p{margin-top:11px}
 .xpb b{color:var(--ink);font-weight:700}
+.xpd{border-left:3px solid var(--blue);padding-left:14px;margin-bottom:4px}
+.xpd p{color:var(--ink)}
+.xpsep{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  margin:18px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
 .xpb .t{display:block;font-weight:800;color:var(--ink);margin-top:14px;margin-bottom:3px;font-size:15px}
 @media print{ .xp{break-inside:avoid} .xp>summary{color:var(--ink)} .xp>summary::after{display:none} }
 
@@ -1149,8 +1168,18 @@ function docHtml(){
   const on = k => show[k] !== false;
   let chapter = 1;
   const SC = ['#1257FF','#06B6D4','#7C5CFF','#10B981','#F59E0B','#FF4D8D'];
-  const xp = key => EXPLAIN[key] ? `<details class="xp"><summary>Explain this in more detail</summary>
-      <div class="xpb">${EXPLAIN[key]}</div></details>` : '';
+  const dataBits = key => {
+    const rows = (c.explain || {})[key];
+    if (!rows || !rows.length) return '';
+    return `<div class="xpd">${rows.map(x =>
+      `${x.t?`<span class="t">${esc(x.t)}</span>`:''}<p>${esc(x.text)}</p>`).join('')}</div>`;
+  };
+  const xp = key => {
+    const d = dataBits(key), gen = EXPLAIN[key];
+    if (!d && !gen) return '';
+    return `<details class="xp"><summary>${d ? 'What this means for you' : 'Explain this in more detail'}</summary>
+      <div class="xpb">${d}${(d && gen) ? '<div class="xpsep">In general</div>' : ''}${gen || ''}</div></details>`;
+  };
   const sec = (key, title, body, plain='', extra='') => {
     if (!body || !on(key)) return '';
     chapter++;
@@ -1265,16 +1294,16 @@ function docHtml(){
     <section class="card dsec rv" style="--sc:#10B981"><h3><span class="chno">01</span>${p.kind==='month'?'The month':'The period'} at a glance</h3>
       <p class="plain">The headline numbers for this period, each one next to the same stretch of days before it.</p>
       <div class="kpis" style="margin-top:14px">${nums.join('')}</div>
-      <details class="xp"><summary>What each of these actually means</summary><div class="xpb">${EXPLAIN.glance}</div></details></section>
+      ${xp('glance')}</section>
     ${sec('chart','Visitors, day by day', chart,
       'Every dot is one day, so you can see the rhythm of the period rather than just a total.')}
     ${((sources&&on('sources'))||(devices&&on('devices'))) ? `<div class="split">
       ${sources&&on('sources')?`<section class="card dsec rv" style="--sc:#06B6D4"><h3><span class="chno">${String(++chapter).padStart(2,'0')}</span>Where visitors came from</h3>
         <p class="plain">How people arrived at the site.</p>${sources}
-        <details class="xp"><summary>Explain this in more detail</summary><div class="xpb">${EXPLAIN.sources}</div></details></section>`:''}
+        ${xp('sources')}</section>`:''}
       ${devices&&on('devices')?`<section class="card dsec rv" style="--sc:#7C5CFF"><h3><span class="chno">${String(++chapter).padStart(2,'0')}</span>What they were using</h3>
         <p class="plain">Phone, computer or tablet.</p>${devices}
-        <details class="xp"><summary>Explain this in more detail</summary><div class="xpb">${EXPLAIN.devices}</div></details></section>`:''}</div>` : ''}
+        ${xp('devices')}</section>`:''}</div>` : ''}
     ${sec('search','How you show up on Google', search,
       'What happens on Google before anyone reaches your site. <b>Position 1 is the top result, and page one ends around 10.</b>')}
     ${sec('pages','Most-visited pages', pages,
@@ -1292,8 +1321,19 @@ function docHtml(){
       <p>${esc(c.summary)}</p>
       <p style="margin-top:14px"><b>Questions about any of this?</b> Reply to the email this came with, or call us — we'd rather talk it through than have you guess at a number.</p>
     </section>
-    <div class="card dfoot"><span>Prepared by JRNEE Technologies LLC for ${esc(r.client.legal||r.client.name)}</span>
-      <span>Google Analytics · Search Console${n.connected.leads?' · leads':''}</span></div>
+    <section class="card brandfoot rv">
+      <svg class="bmark" viewBox="0 0 34 34" aria-hidden="true">
+        <rect width="34" height="34" rx="10" fill="#1257FF"/>
+        <path d="M11 10.5 H23 V20.5 A5 5 0 0 1 13 20.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+        <circle cx="11" cy="10.5" r="2.9" fill="#fff"/></svg>
+      <div class="bword">JRNEE<i>.ai</i></div>
+      <div class="btag">Custom AI-powered software built around how your business already runs</div>
+      <div class="bline"></div>
+      <div class="bmeta"><span>Prepared for ${esc(r.client.legal||r.client.name)}</span>
+        <span>${esc(p.span)}</span>
+        <span>Google Analytics · Search Console${n.connected.leads?' · leads':''}</span></div>
+      <div class="bmeta" style="margin-top:6px"><span>JRNEE Technologies LLC · jrnee.ai</span></div>
+    </section>
   </div>`;
 }
 
@@ -1324,8 +1364,20 @@ function viewDoc(mode){
   if (g('backEdit')) g('backEdit').onclick = () => editReport();
   if (g('saveDraft')) g('saveDraft').onclick = async () => { REP.status='draft';
     await post('/api/report/save', { report: REP }); g('savedAt').textContent = 'Saved'; };
-  if (g('publish')) g('publish').onclick = async () => { await post('/api/report/publish', { report: REP });
-    location.hash = '#/reports/' + encodeURIComponent(REP.clientId); };
+  if (g('publish')) g('publish').onclick = async (e) => {
+    const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Publishing…';
+    try {
+      await post('/api/report/publish', { report: REP });
+      REP.status = 'published';
+      const cid = REP.clientId;
+      if (location.hash !== '#/reports/' + encodeURIComponent(cid))
+        location.hash = '#/reports/' + encodeURIComponent(cid);
+      else showReports(cid);                                   // same address — render it ourselves
+    } catch (err) {
+      btn.disabled = false; btn.textContent = 'Publish to client';
+      view.insertAdjacentHTML('afterbegin', `<div class="notice"><b>Couldn't publish.</b> ${esc(err.message)}</div>`);
+    }
+  };
   if (g('unpub')) g('unpub').onclick = async () => {
     await post('/api/report/unpublish', { client:REP.clientId, id:REP.id }); openReport(REP.clientId, REP.id); };
 }
