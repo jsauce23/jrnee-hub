@@ -282,6 +282,22 @@ body.editing .editable{outline-color:color-mix(in srgb,var(--blue) 45%,transpare
 body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surface)}
 .saving{font-size:12.5px;color:var(--muted)}
 
+@media print{
+  :root{--bg:#fff;--surface:#fff;--soft:#F7F9FD;--ink:#0A1224;--slate:#50607D;--muted:#7C8AA3;--line:#DCE3F0;
+        --shadow:none;color-scheme:light}
+  html,body{background:#fff!important}
+  body{padding:0}
+  .top,.tbtn,.back,.rtabs,.bar,.saving,#reportBar,.notice,.caps-hint{display:none!important}
+  main{padding:0}
+  .wrap{max-width:none;padding:0}
+  .doc{margin:0}
+  .card{box-shadow:none!important;border:1px solid var(--line)!important;break-inside:avoid;page-break-inside:avoid}
+  .dsec,.mv,.grp,.opp,.kpi{break-inside:avoid;page-break-inside:avoid}
+  .cover{break-after:avoid;page-break-after:avoid}
+  .editable{outline:none!important;background:none!important}
+  a{color:inherit;text-decoration:none}
+  @page{margin:14mm}
+}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -751,7 +767,7 @@ function editReport(){
   if (REP.work) readout();
   $('#buildBtn').onclick = () => { REP.plans = $('#planBox').value;
     REP.content.next = REP.plans.split('\n').map(l=>l.replace(/^\s*[-*•\d.)]+\s*/,'').trim()).filter(Boolean);
-    viewDoc(true); };
+    viewDoc('edit'); };
 }
 
 /* ---- the report document ---- */
@@ -823,23 +839,41 @@ function harvest(){
   if (ol) c.next = [...ol.querySelectorAll('li')].map(li=>li.innerText.trim()).filter(Boolean);
 }
 
-function viewDoc(editing){
-  document.body.classList.toggle('editing', !!editing);
-  const bar = editing
-    ? `<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
-         <button class="tbtn" id="backEdit" type="button">← Change the text</button>
-         <span class="saving" id="savedAt"></span><div style="flex:1"></div>
-         <button class="tbtn" id="saveDraft" type="button">Save draft</button>
-         <button class="tbtn pri" id="publish" type="button">Publish to client</button></div>`
-    : '';
+function viewDoc(mode){
+  // mode: 'edit' · 'preview' · 'published'
+  const editing = mode === 'edit';
+  document.body.classList.toggle('editing', editing);
+  let bar = '';
+  if (editing) bar = `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <button class="tbtn" id="backEdit" type="button">← Change the text</button>
+      <span class="saving" id="savedAt"></span><div style="flex:1"></div>
+      <button class="tbtn" id="previewBtn" type="button">Preview</button>
+      <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
+      <button class="tbtn" id="saveDraft" type="button">Save draft</button>
+      <button class="tbtn pri" id="publish" type="button">Publish to client</button></div>`;
+  if (mode === 'preview') bar = `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <button class="tbtn" id="backToEdit" type="button">← Back to editing</button>
+      <span class="saving">Exactly what the client will see</span><div style="flex:1"></div>
+      <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
+      <button class="tbtn pri" id="publish" type="button">Publish to client</button></div>`;
+  if (mode === 'published') bar = `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <span class="conn on">Published</span><div style="flex:1"></div>
+      <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
+      <button class="tbtn" id="unpub" type="button">Move back to draft</button></div>`;
+
   view.innerHTML = `<a class="back" href="#/reports/${encodeURIComponent(REP.clientId)}">← Reports</a>${bar}${docHtml(editing)}`;
-  if (!editing) return;
-  $('#backEdit').onclick = () => { harvest(); editReport(); };
-  $('#saveDraft').onclick = async () => { harvest(); REP.status='draft';
+
+  const dl = $('#dlBtn'); if (dl) dl.onclick = () => { if (editing) harvest(); print(); };
+  const pv = $('#previewBtn'); if (pv) pv.onclick = () => { harvest(); viewDoc('preview'); };
+  const be = $('#backToEdit'); if (be) be.onclick = () => viewDoc('edit');
+  const bk = $('#backEdit'); if (bk) bk.onclick = () => { harvest(); editReport(); };
+  const sd = $('#saveDraft'); if (sd) sd.onclick = async () => { harvest(); REP.status='draft';
     await post('/api/report/save', { report: REP }); $('#savedAt').textContent = 'Saved'; };
-  $('#publish').onclick = async () => { harvest();
+  const pb = $('#publish'); if (pb) pb.onclick = async () => { if (editing) harvest();
     await post('/api/report/publish', { report: REP });
     location.hash = '#/reports/' + encodeURIComponent(REP.clientId); };
+  const up = $('#unpub'); if (up) up.onclick = async () => {
+    await post('/api/report/unpublish', { client:REP.clientId, id:REP.id }); openReport(REP.clientId, REP.id); };
 }
 
 async function openReport(cid, id){
@@ -847,15 +881,15 @@ async function openReport(cid, id){
   try {
     REP = await api(`/api/report/item?c=${encodeURIComponent(cid)}&id=${encodeURIComponent(id)}`);
     document.body.classList.remove('editing');
-    if (IS_CLIENT){ view.innerHTML = docHtml(false); return; }
-    $('#presentBtn').hidden = false;
-    viewDoc(REP.status !== 'published');
-    if (REP.status === 'published'){
-      view.insertAdjacentHTML('afterbegin',
-        `<div style="display:flex;gap:9px;margin-bottom:10px;flex-wrap:wrap">
-          <button class="tbtn" id="unpub" type="button">Move back to draft</button></div>`);
-      $('#unpub').onclick = async () => { await post('/api/report/unpublish',{client:cid,id}); openReport(cid,id); };
+    if (IS_CLIENT){
+      view.innerHTML = `<a class="back" href="#/reports">← Reports</a>
+        <div id="reportBar" style="display:flex;justify-content:flex-end;margin-bottom:10px">
+          <button class="tbtn" id="dlBtn" type="button">Download PDF</button></div>${docHtml(false)}`;
+      $('#dlBtn').onclick = () => print();
+      return;
     }
+    $('#presentBtn').hidden = false;
+    viewDoc(REP.status === 'published' ? 'published' : 'edit');
   } catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't open that report.</b> ${esc(e.message)}</div>`; }
 }
 
