@@ -42,6 +42,21 @@ function classify(question) {
   };
 }
 
+
+/* Every answer ends with what's being done. These come from the report's own plans,
+   so they're work that's genuinely queued, not reassurance. */
+function closer(rep, topic) {
+  const c = rep.content || {};
+  const fromMoved = (c.moved || []).find(m => m.down && m.fix);
+  const room = (c.room || []).filter(r => r.fix);
+  const pick = arr => arr.length ? arr[0] : null;
+  const match = room.find(r => topic && (r.title || '').toLowerCase().includes(topic));
+  const chosen = match || pick(room) || (fromMoved ? { fix: fromMoved.fix } : null);
+  if (chosen) return `Joel and the team are already on it — ${chosen.fix.charAt(0).toLowerCase() + chosen.fix.slice(1)}`;
+  if ((c.next || []).length) return `Joel and the team are working on ${c.next[0].charAt(0).toLowerCase() + c.next[0].slice(1)} next.`;
+  return `Joel and the team are looking at it, and it'll be in the next report either way.`;
+}
+
 /* ---------------- answers, built only from this report ---------------- */
 function answerFromData(question, rep) {
   const n = rep.numbers || {}, c = rep.content || {}, p = rep.period || {};
@@ -71,12 +86,21 @@ function answerFromData(question, rep) {
     if (down && down.why) bits.push(down.why);
     else if (ch !== null && ch < 0 && n.impressions && n.impressions.prev) {
       const ic = pcChange(n.impressions.cur, n.impressions.prev);
-      bits.push(ic < 0
-        ? `Google also showed the site less often — ${nf(n.impressions.cur)} times against ${nf(n.impressions.prev)} — so fewer people were in a position to click.`
-        : `Google showed the site just as often, so this is about people choosing a different result rather than you appearing less.`);
+      bits.push(ic <= -5
+        ? `Google also showed the site less often — ${nf(n.impressions.cur)} times against ${nf(n.impressions.prev)} — so fewer people were even in a position to click.`
+        : ic >= 5
+          ? `Google actually showed the site more often, ${nf(n.impressions.cur)} times against ${nf(n.impressions.prev)}, so you were appearing plenty — people just picked a different result.`
+          : `Google showed the site about as often as before, so this is people choosing a different result rather than you appearing less.`);
     }
-    if (k.pointed) bits.push(`You're pointing at something longer than this one period, and that's a fair question — I've flagged it for Joel so he can look across the whole run rather than just this report, and he'll come back to you on it.`);
-    else if (ch !== null && ch < 0) bits.push(`One quieter period on its own isn't a trend. If it carries into the next one we'd treat it as a real change and dig in properly.`);
+    if (ch !== null && ch < 0 && !down) {
+      const impMove = (n.impressions && n.impressions.prev) ? pcChange(n.impressions.cur, n.impressions.prev) : null;
+      const lean = impMove === null ? `Without search data connected I can't tell you which of those it was.`
+        : impMove <= -5 ? `The figures lean towards the first two — you were shown less often, which usually means demand or competition rather than anything on the site.`
+        : `The figures lean towards the last one — you were shown just as often, so it's about which result people chose.`;
+      bits.push(`A dip like this usually comes down to one of three things: fewer people searching at this time of year, a competitor climbing above you, or one of your pages slipping a few places. ${lean}`);
+    }
+    if (k.pointed) bits.push(`You're pointing at something longer than one period, which is fair — I've flagged it so Joel looks across the whole run and comes back to you directly.`);
+    bits.push(closer(rep, 'search'));
     return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
   }
 
@@ -110,7 +134,8 @@ function answerFromData(question, rep) {
       const t = kw.top[0];
       bits.push(`Your strongest is “${t.q}” at position ${t.position.toFixed(1)}, bringing ${nf(t.clicks)} clicks.`);
     }
-    bits.push(`Rankings move slowly — weeks rather than days — so anything we changed recently usually shows up a report or two later.`);
+    bits.push(`Rankings move in weeks rather than days, so recent work tends to show up a report or two later.`);
+    bits.push(closer(rep, 'page'));
     return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
   }
 
@@ -125,7 +150,7 @@ function answerFromData(question, rep) {
       return { text:
         `Honest answer: I can't tie an individual enquiry back to the page someone was on when they sent it. The form records the message, not the page it came from. ` +
         (top ? `What I can tell you is where people spend their time — ${top.path} had ${nf(top.views)} views this period. ` : '') +
-        `Tracking which page produces each enquiry is a small change Joel can make, and then this becomes a straight answer every month. Worth asking him for it.`,
+        `Joel and the team can switch on tracking that records the page behind each enquiry, and then this becomes a straight answer every month rather than an educated guess.`,
         routed: false, flagged: false };
     }
     if (!lead) return { text:
@@ -142,7 +167,9 @@ function answerFromData(question, rep) {
       const withPhone = n.leadItems.filter(l => l.phone).length;
       if (withPhone) bits.push(`${withPhone} of the ones listed left a phone number, and calling back the same day tends to matter more than anything else on the page.`);
     }
-    if (k.pointed) bits.push(`I've flagged this for Joel so he can pick it up with you directly.`);
+    if (ch !== null && ch < 0) bits.push(`When enquiries dip but visits hold up, it's usually about what happens once people land — how easy the form is, how obvious the phone number is on a small screen. When visits dip too, it's a traffic question instead.`);
+    if (k.pointed) bits.push(`I've flagged this so Joel picks it up with you directly.`);
+    bits.push(closer(rep, 'enquir'));
     return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
   }
 
@@ -152,7 +179,7 @@ function answerFromData(question, rep) {
     const list = n.channels.slice(0, 3)
       .map(x => `${x.name} ${Math.round(x.sessions / tot * 100)}%`).join(', ');
     return { text:
-      `This period it broke down as ${list}. Search traffic is the part that keeps growing on its own; direct means people who already knew your name and typed it in.`,
+      `This period it broke down as ${list}. Search traffic is the part that compounds — it keeps arriving without being paid for. Direct means people who already knew your name. ${closer(rep, 'search')}`,
       routed: false, flagged: !!k.pointed };
   }
 
@@ -175,7 +202,7 @@ function answerFromData(question, rep) {
     const quick = n.pages.find(x => x.views >= 30 && x.avgTime < 20);
     return { text:
       `Your most visited page was ${t.path} with ${nf(t.views)} views, averaging ${mmss(t.avgTime)} on the page. ` +
-      (quick ? `${quick.path} is worth a look — ${nf(quick.views)} views but people left after ${mmss(quick.avgTime)}, which usually means it isn't answering what they came for.` : ''),
+      (quick ? `${quick.path} is worth a look — ${nf(quick.views)} views but people left after ${mmss(quick.avgTime)}, which usually means the page isn't answering what they arrived for, or isn't making the next step obvious. ` : '') + closer(rep, 'page'),
       routed: false, flagged: false };
   }
 
@@ -194,7 +221,7 @@ function answerFromData(question, rep) {
 
   // nothing matched
   return { text:
-    `I can't answer that one from the figures in this report, and I'd rather not guess. I've sent it to Joel and he'll get back to you.`,
+    `That one's outside what the figures in this report can tell me, and I'd rather give you a straight answer than a guess. I've sent it to Joel — he'll have the context I don't and he'll come back to you on it.`,
     routed: true, flagged: !!k.pointed, reason: 'no_match' };
 }
 
@@ -205,24 +232,46 @@ const MODEL = process.env.ASK_MODEL || 'claude-sonnet-5';
 const hasModel = () => !!API_KEY;
 
 const SYSTEM = `You are "Ask JRNEE", answering questions a small business owner asks while reading
-the monthly website report JRNEE Technologies prepared for them.
+the monthly website report JRNEE Technologies prepared for them. Joel and his team built and run
+their website. You are the knowledgeable person on that team who happens to be free to talk.
 
-HOW TO ANSWER
-- Plain language. No jargon. If you must use a term like "impressions", explain it in the same sentence.
-- A few sentences. Three or four at most. This sits inside a report, not a chat window.
-- Lead with the number, then the reason, then what it means for their business.
-- Use only the figures in the DATA block. Never invent a number, a cause, or a comparison.
-- If the data cannot answer the question, say so plainly and say Joel will pick it up. Do not speculate
-  about causes you cannot see in the data.
-- Write like a person talking to a client they respect. No bullet points, no headings, no sign-off.
+VOICE
+- Talk like an expert who likes explaining things. Warm, direct, unhurried. Use contractions.
+- Three to five sentences. Enough to actually answer, short enough to read mid-scroll.
+- No jargon unless you explain it in the same breath. No bullet points, no headings, no sign-off.
+- Don't hedge everything into mush. If the data points somewhere, say so.
+
+SHAPE OF A GOOD ANSWER
+1. The number, straight away.
+2. The honest reason. If the data shows the cause, name it. If it doesn't, say what usually
+   explains this and which of those the figures point towards — label it as likely, not certain.
+3. What's being done about it. Always finish here.
+
+ALWAYS END WITH THE PLAN
+Every answer closes with what Joel and the team are doing about it, or what they'll look at next.
+Use the plans in the DATA block where one fits — they're real, already decided work. If the question
+is about something going well, close with how it gets built on. Never leave someone with a problem
+and no next step. Never say "there's nothing we can do".
+
+HONESTY
+- Only use figures from the DATA block. Never invent a number, a date, or a comparison.
+- You may reason about likely causes using what you know about how websites and search work,
+  as long as you flag it as likely rather than certain. Seasonal demand, a competitor moving,
+  a page losing ground, a slow week — these are fair to raise when the figures fit.
+- If the data genuinely can't answer it, say that plainly, then say what Joel will check.
+
+ABOUT JRNEE
+- Never criticise JRNEE, Joel, or the team. Never suggest the work was wrong, late or lacking.
+- Never hide a cause that is visible in the figures either. If a change coincides with a drop,
+  state it neutrally as a thing that happened, and go straight to what's being done.
+- Never claim JRNEE's work caused an improvement. Describe what changed and let them join the dots.
 
 NEVER
-- Never promise or predict results. Not "this will improve", not "you should see more leads".
-- Never give legal advice of any kind, and never comment on anything legal. Some clients are law firms.
-- Never discuss pricing, billing, invoices, contracts, scope, or whether they are getting value for money.
-  Those go to Joel. If asked, say that Joel will answer it directly.
-- Never criticise the client, and never blame them for a number.
-- Never claim JRNEE's work caused a change. Describe what changed; let them draw the line.`;
+- Never promise or predict results. Not "this will improve", not "you'll see more leads next month".
+  Describe the work, not the outcome.
+- Never give legal advice, or comment on anything legal. Some clients are law firms.
+- Never discuss pricing, billing, invoices, contracts, scope, or value for money. Joel answers those.
+- Never criticise the client or blame them for a number.`;
 
 function compactContext(rep) {
   const n = rep.numbers || {}, c = rep.content || {}, p = rep.period || {};

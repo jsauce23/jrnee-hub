@@ -107,9 +107,16 @@ What the model is **not** allowed to do, enforced in code before the call is mad
 - billing, pricing, scope or value questions never reach it; they route to you
 - legal questions never reach it; they route to you
 
-And in its instructions: only use figures from the report, never invent a number or a cause,
-never promise results, never claim our work caused a change, say plainly when the data can't
-answer it.
+Its instructions: talk like an expert who enjoys explaining things, three to five sentences,
+plain language. Lead with the number, give the honest reason, and **always close with what Joel
+and the team are doing about it** — taken from the plans already in the report, so it's real work
+rather than reassurance.
+
+It may reason about likely causes (seasonal demand, a competitor moving, a page slipping) as long
+as it flags them as likely and the figures fit. It never invents a number, never promises results,
+never claims our work caused an improvement, and never criticises JRNEE or the client. It also
+won't hide a cause that's visible in the figures — it states it neutrally and goes straight to the
+plan.
 
 There is a quiet cap of 60 questions per client per hour. If it trips, the client still gets a
 real answer from the figures — they never see a limit or an error.
