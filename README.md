@@ -11,6 +11,7 @@ Private back office for client website analytics. Runs on Render as a Web Servic
 | `SESSION_SECRET` | Any long random string |
 | `GOOGLE_SERVICE_ACCOUNT` | The full contents of the Google service-account JSON key |
 | `NETLIFY_TOKEN` | Netlify personal access token |
+| `GHL_TOKENS` | GoHighLevel tokens for clients on that platform: `clientid:pit-xxxxxxxx` |
 | `API_KEYS` | Read-only API keys, one per client (see below). Leave unset if nobody needs the API |
 | `DATA_DIR` | Where reports are stored. Set to `/var/data` and attach a Render disk at that path |
 
@@ -43,6 +44,28 @@ a report again immediately.
 
 Periods available: last month, this month so far, last 30 days, last 90 days, or custom dates.
 Every period is compared against the same number of days immediately before it.
+
+## Clients on GoHighLevel
+
+Instead of a Netlify site ID, give them a location ID:
+
+```json
+"ghlLocationId": "DFvqy4IoiWRyMxqjSeJu",
+"ghlSource": "",
+"ghlTags": []
+```
+
+Then add their private integration token in Render: `GHL_TOKENS` = `clientid:pit-xxxxxxxx`.
+Get the token from their sub-account under Settings -> Private Integrations, with read access
+to contacts.
+
+GoHighLevel contacts are not the same as website enquiries — imports, manual adds and
+missed-call text-backs all create contacts. If their account is mixed, narrow it:
+
+- `"ghlSource": "website"` — only contacts whose source mentions that word
+- `"ghlTags": ["web-lead"]` — only contacts carrying one of these tags
+
+Leave both empty to count every new contact.
 
 ## Giving a client API access
 

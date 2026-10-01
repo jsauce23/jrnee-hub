@@ -371,7 +371,7 @@ async function showList(fresh){
   const cfg = data.config || {};
   let warn = '';
   if (!cfg.google) warn += `<div class="notice"><b>Google isn't connected yet.</b> Add <code>GOOGLE_SERVICE_ACCOUNT</code> in Render → Environment to show Analytics and Search Console.</div>`;
-  if (!cfg.netlify) warn += `<div class="notice"><b>Netlify isn't connected yet.</b> Add <code>NETLIFY_TOKEN</code> in Render → Environment to show form leads.</div>`;
+  if (!cfg.netlify) warn += `<div class="notice"><b>No lead source connected yet.</b> Add <code>NETLIFY_TOKEN</code> (or <code>GHL_TOKENS</code>) in Render → Environment.</div>`;
   if (cfg.serviceAccount) warn += `<p class="muted" style="font-size:12.5px;margin-top:14px">Hub service account: <span style="font-family:var(--mono)">${esc(cfg.serviceAccount)}</span> — add this email as a viewer on each client's Analytics and Search Console.</p>`;
 
   const cards = data.clients.map(c => {
@@ -389,7 +389,7 @@ async function showList(fresh){
       <div class="conns">
         <span class="conn ${on.ga ? 'on' : ''}">Analytics</span>
         <span class="conn ${on.gsc ? 'on' : ''}">Search Console</span>
-        <span class="conn ${on.netlify ? 'on' : ''}">Netlify leads</span>
+        <span class="conn ${on.netlify ? 'on' : ''}">Leads</span>
       </div>
       ${(c.problems || []).length ? `<div class="prob">${esc(c.problems[0])}</div>` : ''}
     </a>`;
@@ -426,7 +426,7 @@ async function showDashboard(fresh){
   const t = d.totals, cfg = d.config || {};
   let warn = '';
   if (!cfg.google) warn += `<div class="notice"><b>Google isn't connected yet.</b> Add <code>GOOGLE_SERVICE_ACCOUNT</code> in Render → Environment.</div>`;
-  if (!cfg.netlify) warn += `<div class="notice"><b>Netlify isn't connected yet.</b> Add <code>NETLIFY_TOKEN</code> in Render → Environment to see leads.</div>`;
+  if (!cfg.netlify) warn += `<div class="notice"><b>No lead source connected yet.</b> Add <code>NETLIFY_TOKEN</code> (or <code>GHL_TOKENS</code> for GoHighLevel clients) in Render → Environment.</div>`;
 
   const kpi = (label, value, d_, note, color) => `<div class="kpi card" style="--kc:${color}"><small>${label}</small><div class="v">${value}${d_ || ''}</div><div class="n">${note}</div></div>`;
   const kpis = `<div class="kpis">
@@ -451,7 +451,7 @@ async function showDashboard(fresh){
 
   const mark = b => b ? '<span class="ok">✓</span>' : '<span class="no">—</span>';
   const setup = `<div class="tscroll"><table>
-    <thead><tr><th>Client</th><th class="c">Analytics</th><th class="c">Search Console</th><th class="c">Netlify</th><th class="c">Password</th><th class="r">Status</th></tr></thead>
+    <thead><tr><th>Client</th><th class="c">Analytics</th><th class="c">Search Console</th><th class="c">Leads</th><th class="c">Password</th><th class="r">Status</th></tr></thead>
     <tbody>${d.setup.map(s => `<tr>
       <td class="q"><a href="#/c/${encodeURIComponent(s.id)}">${esc(s.name)}</a></td>
       <td class="c">${mark(s.ga)}</td><td class="c">${mark(s.gsc)}</td><td class="c">${mark(s.netlify)}</td><td class="c">${mark(s.password)}</td>
@@ -591,7 +591,7 @@ async function showReport(fresh){
   } else pages = gaState.html;
 
   /* leads */
-  const ldState = sectionState(er.leads, 'Netlify', 'Add this client\'s Netlify site ID to <code>clients.json</code>.');
+  const ldState = sectionState(er.leads, 'A lead source', 'Add this client\'s Netlify site ID or GoHighLevel location ID to <code>clients.json</code>.');
   let leads;
   if (ld){
     leads = ld.leads.length ? `<div class="leads">${ld.leads.map(x => `<div class="lead">

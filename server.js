@@ -7,6 +7,8 @@
 //   SESSION_SECRET          any long random string (keeps you logged in across restarts)
 //   GOOGLE_SERVICE_ACCOUNT  the whole Google service-account JSON key, pasted in
 //   NETLIFY_TOKEN           a Netlify personal access token (for form leads)
+//   GHL_TOKENS              GoHighLevel private integration tokens, one per client:
+//                             clientid:pit-xxxxxxxx
 //   API_KEYS                read-only API access, one per client:
 //                             marco:jrnee_live_xxxxx          (numbers only)
 //                             marco:jrnee_live_xxxxx:leads    (numbers + lead details)
@@ -30,6 +32,18 @@ const REPORTS = require('./reports.js');
 const SA = loadServiceAccount();
 const CLIENT_PW = loadClientPasswords();
 const API_KEYS = loadApiKeys();
+const GHL_TOKENS = loadPairs('GHL_TOKENS');
+
+function loadPairs(name) {
+  const raw = (process.env[name] || '').trim();
+  const map = {};
+  if (!raw) return map;
+  raw.split(/[\n,]+/).forEach(p => {
+    const i = p.indexOf(':');
+    if (i > 0) { const k = p.slice(0, i).trim(), v = p.slice(i + 1).trim(); if (k && v) map[k] = v; }
+  });
+  return map;
+}
 
 function loadApiKeys() {
   const raw = (process.env.API_KEYS || '').trim();
@@ -340,12 +354,107 @@ function reportIO(c) {
   return {
     gaId: gaId(c) || null,
     gscSite: c.gscSiteUrl || null,
-    netlifySite: c.netlifySiteId || null,
+    netlifySite: hasLeadSource(c) ? (c.netlifySiteId || c.ghlLocationId) : null,
     ga: body => ga(gaId(c), body),
     gsc: body => gsc(c.gscSiteUrl, body),
-    leads: period => netlifyLeadsRange(c.netlifySiteId, period)
+    leads: period => leadsForPeriod(c, period)
   };
 }
+
+/* ---------------- GoHighLevel leads ---------------- */
+const GHL_BASE = 'https://services.leadconnectorhq.com';
+const ghlHeaders = token => ({ Authorization:'Bearer ' + token, Version:'2021-07-28',
+  'Content-Type':'application/json', Accept:'application/json' });
+
+/** Contacts added between two dates. Tries the search endpoint, falls back to the list one. */
+async function ghlContacts(c, startISO, endISO) {
+  const token = GHL_TOKENS[c.id];
+  if (!token) throw new Error(`No GoHighLevel token for "${c.id}" — add it to GHL_TOKENS in Render.`);
+  const loc = c.ghlLocationId;
+  const from = new Date(startISO).getTime(), to = new Date(endISO).getTime();
+
+  const search = async () => {
+    const r = await fetch(`${GHL_BASE}/contacts/search`, { method:'POST', headers:ghlHeaders(token),
+      body: JSON.stringify({ locationId: loc, pageLimit: 100,
+        filters: [{ field:'dateAdded', operator:'range', value:{ gte:startISO, lte:endISO } }],
+        sort: [{ field:'dateAdded', direction:'desc' }] }) });
+    if (!r.ok) throw new Error('search ' + r.status);
+    const j = await r.json();
+    return j.contacts || j.data || [];
+  };
+  const list = async () => {
+    let all = [], startAfter = null, startAfterId = null;
+    for (let page = 0; page < 6; page++) {
+      const qs = new URLSearchParams({ locationId: loc, limit: '100' });
+      if (startAfter) { qs.set('startAfter', startAfter); qs.set('startAfterId', startAfterId); }
+      const r = await fetch(`${GHL_BASE}/contacts/?` + qs, { headers: ghlHeaders(token) });
+      if (r.status === 401) throw new Error('GoHighLevel rejected the token. Create a new private integration token.');
+      if (!r.ok) throw new Error('GoHighLevel request failed (' + r.status + ').');
+      const j = await r.json();
+      const batch = j.contacts || [];
+      all = all.concat(batch);
+      const meta = j.meta || {};
+      startAfter = meta.startAfter; startAfterId = meta.startAfterId;
+      if (!batch.length || !startAfter) break;
+      const oldest = new Date(batch[batch.length - 1].dateAdded).getTime();
+      if (oldest < from) break;
+    }
+    return all;
+  };
+
+  let rows;
+  try { rows = await search(); } catch (e) { rows = await list(); }
+
+  // only count what the website actually produced, if the client's account is mixed
+  const wantSource = (c.ghlSource || '').toLowerCase();
+  const wantTags = (c.ghlTags || []).map(t => String(t).toLowerCase());
+  const keep = x => {
+    if (wantSource) {
+      const src = [x.source, x.attributionSource?.sessionSource, x.attributions?.[0]?.sessionSource]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!src.includes(wantSource)) return false;
+    }
+    if (wantTags.length) {
+      const tags = (x.tags || []).map(t => String(t).toLowerCase());
+      if (!wantTags.some(t => tags.includes(t))) return false;
+    }
+    return true;
+  };
+
+  return rows.filter(keep).map(x => ({
+    when: x.dateAdded,
+    form: x.source || x.attributionSource?.sessionSource || '',
+    name: x.contactName || [x.firstName, x.lastName].filter(Boolean).join(' ') || '',
+    email: x.email || '', phone: x.phone || '',
+    message: x.notes || ''
+  })).filter(l => { const t = new Date(l.when).getTime(); return t >= from && t <= to; });
+}
+
+async function ghlLeads(c, startISO, endISO, prevStartISO, prevEndISO) {
+  const [cur, prev] = await Promise.all([
+    ghlContacts(c, startISO, endISO),
+    ghlContacts(c, prevStartISO, prevEndISO)
+  ]);
+  cur.sort((a, b) => new Date(b.when) - new Date(a.when));
+  return { count:{ cur:cur.length, prev:prev.length }, leads:cur.slice(0, 50), items:cur.slice(0, 40) };
+}
+
+/** Whichever source this client uses. */
+const usesGhl = c => !!c.ghlLocationId;
+function leadsForDays(c, n) {
+  const end = new Date(), start = new Date(Date.now() - n * 864e5);
+  const pStart = new Date(Date.now() - 2 * n * 864e5);
+  return usesGhl(c)
+    ? ghlLeads(c, start.toISOString(), end.toISOString(), pStart.toISOString(), start.toISOString())
+    : netlifyLeads(c.netlifySiteId, n);
+}
+function leadsForPeriod(c, period) {
+  return usesGhl(c)
+    ? ghlLeads(c, period.start + 'T00:00:00Z', period.end + 'T23:59:59Z',
+               period.prevStart + 'T00:00:00Z', period.prevEnd + 'T23:59:59Z')
+    : netlifyLeadsRange(c.netlifySiteId, period);
+}
+const hasLeadSource = c => usesGhl(c) || !!c.netlifySiteId;
 
 /* ---------------- report assembly + cache ---------------- */
 const publicClient = c => ({ id: c.id, name: c.name, legal: c.legal || c.name, domain: c.domain || '', initials: c.initials || c.name.slice(0, 2).toUpperCase(), status: c.status || '' });
@@ -356,7 +465,7 @@ async function buildReport(c, n) {
   const jobs = [];
   if (gaId(c)) jobs.push(gaReport(gaId(c), n).then(v => out.ga = v, e => out.errors.ga = e.message)); else out.errors.ga = 'not_connected';
   if (c.gscSiteUrl) jobs.push(gscReport(c.gscSiteUrl, n).then(v => out.gsc = v, e => out.errors.gsc = e.message)); else out.errors.gsc = 'not_connected';
-  if (c.netlifySiteId) jobs.push(netlifyLeads(c.netlifySiteId, n).then(v => out.leads = v, e => out.errors.leads = e.message)); else out.errors.leads = 'not_connected';
+  if (hasLeadSource(c)) jobs.push(leadsForDays(c, n).then(v => out.leads = v, e => out.errors.leads = e.message)); else out.errors.leads = 'not_connected';
   await Promise.all(jobs);
   return out;
 }
@@ -364,14 +473,14 @@ async function buildReport(c, n) {
 async function summary(c, n = 28) {
   const o = { visitors: null, prevVisitors: null, leads: null, prevLeads: null, problems: [], recent: [],
     hasPassword: !!CLIENT_PW[c.id],
-    connected: { ga: !!gaId(c), gsc: !!c.gscSiteUrl, netlify: !!c.netlifySiteId } };
+    connected: { ga: !!gaId(c), gsc: !!c.gscSiteUrl, netlify: hasLeadSource(c) } };
   const jobs = [];
   if (gaId(c)) jobs.push((async () => {
     const { cur, prev } = ranges(n);
     const q = dr => ga(gaId(c), { dateRanges: [dr], metrics: [{ name: 'activeUsers' }] }).then(j => num(j.rows?.[0]?.metricValues?.[0]?.value));
     [o.visitors, o.prevVisitors] = await Promise.all([q(cur), q(prev)]);
   })().catch(e => o.problems.push(e.message)));
-  if (c.netlifySiteId) jobs.push(netlifyLeads(c.netlifySiteId, n)
+  if (hasLeadSource(c)) jobs.push(leadsForDays(c, n)
     .then(v => { o.leads = v.count.cur; o.prevLeads = v.count.prev; o.recent = v.leads.slice(0, 25); })
     .catch(e => o.problems.push(e.message)));
   await Promise.all(jobs);
@@ -605,7 +714,7 @@ http.createServer(async (req, res) => {
       const list = await Promise.all(CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
       return json(res, 200, {
         clients: CLIENTS.map((c, i) => { const { recent, ...rest } = list[i]; return { ...publicClient(c), ...rest }; }),
-        config: { google: !!SA, netlify: !!NETLIFY_TOKEN, serviceAccount: SA ? SA.client_email : null }
+        config: { google: !!SA, netlify: !!NETLIFY_TOKEN || !!Object.keys(GHL_TOKENS).length, serviceAccount: SA ? SA.client_email : null }
       });
     }
 
@@ -617,7 +726,7 @@ http.createServer(async (req, res) => {
       return json(res, 200, {
         ...buildDashboard(clients),
         generated: new Date().toISOString(),
-        config: { google: !!SA, netlify: !!NETLIFY_TOKEN, serviceAccount: SA ? SA.client_email : null }
+        config: { google: !!SA, netlify: !!NETLIFY_TOKEN || !!Object.keys(GHL_TOKENS).length, serviceAccount: SA ? SA.client_email : null }
       });
     }
 
