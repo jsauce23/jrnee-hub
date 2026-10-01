@@ -409,6 +409,30 @@ body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surf
 .closing p{color:#C7D6EE;font-size:16px;margin-top:12px;max-width:58ch;line-height:1.6}
 .closing b{color:#fff}
 
+
+/* ---------- readable section headings ---------- */
+.dsec h3{font-family:var(--sans);font-size:clamp(19px,2.4vw,24px);font-weight:800;letter-spacing:-.035em;
+  text-transform:none;color:var(--ink);align-items:center;gap:0}
+.chno{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:#fff;background:var(--sc,var(--blue));
+  border-radius:8px;padding:5px 9px;margin-right:12px;flex:none}
+.plain{font-size:16px;color:var(--slate);margin-top:11px;max-width:66ch;line-height:1.62}
+.plain b{color:var(--ink);font-weight:700}
+
+/* ---------- explain more ---------- */
+.xp{margin-top:13px;border:1px solid var(--line);border-radius:13px;background:var(--soft);overflow:hidden}
+.xp>summary{list-style:none;cursor:pointer;padding:12px 15px;display:flex;align-items:center;gap:10px;
+  font-size:14.5px;font-weight:700;color:var(--blue)}
+.xp>summary::-webkit-details-marker{display:none}
+.xp>summary::after{content:"";width:9px;height:9px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;
+  transform:rotate(45deg);margin-left:auto;margin-right:4px;transition:transform .25s}
+.xp[open]>summary::after{transform:rotate(-135deg)}
+.xp>summary:hover{background:color-mix(in srgb,var(--blue) 6%,transparent)}
+.xpb{padding:2px 16px 16px;font-size:15.3px;line-height:1.65;color:var(--slate)}
+.xpb p+p{margin-top:11px}
+.xpb b{color:var(--ink);font-weight:700}
+.xpb .t{display:block;font-weight:800;color:var(--ink);margin-top:14px;margin-bottom:3px;font-size:15px}
+@media print{ .xp{break-inside:avoid} .xp>summary{color:var(--ink)} .xp>summary::after{display:none} }
+
 @media print{
   .rv{opacity:1!important;transform:none!important}
   .chart .draw{animation:none;stroke-dashoffset:0}
@@ -1034,6 +1058,50 @@ async function deleteDraft(cid, id, label){
   showReports(cid);
 }
 
+
+const EXPLAIN = {
+  glance: `<p>These four numbers are the health check. Everything else in the report explains how they got there.</p>
+    <span class="t">Enquiries</span><p>People who actually contacted you — a form, a call button, a message. This is the number that turns into money.</p>
+    <span class="t">Visitors</span><p>How many separate people came to the site. Someone who visits three times still counts once.</p>
+    <span class="t">Clicks from Google</span><p>People who searched something, saw your site in the results, and chose yours.</p>
+    <span class="t">Average position</span><p>Where you typically show up in Google results. <b>Lower is better</b> — position 3 means you're usually third on the page. Going from 11 to 7 is a big deal, because page one ends around 10.</p>
+    <p>Each one is measured against the same length of time immediately before, so you're comparing like with like.</p>`,
+  chart: `<p>Every dot is one day. The line shows the rhythm of the period — which days were busy, which were quiet.</p>
+    <p>Most local businesses see a dip at weekends and a lift Monday and Tuesday. That's normal and not worth worrying about. What matters is the <b>overall direction</b> and any sudden drop that doesn't recover within a few days.</p>
+    <p>The faint dashed line is the same number of days before this period, so you can see whether the shape improved or just moved.</p>`,
+  sources: `<p>Where people were immediately before they landed on your site.</p>
+    <span class="t">Google and other search engines</span><p>They searched for something and clicked your site. This is the traffic that grows on its own over time, and it's what most of our work goes into.</p>
+    <span class="t">Came straight to the site</span><p>They typed your address, used a bookmark, or clicked a link in a text or email. Usually people who already know you.</p>
+    <span class="t">Links from other websites</span><p>Someone else's site sent them — a directory, a partner, a news mention.</p>
+    <span class="t">Social media</span><p>From a post on Facebook, Instagram and the like.</p>
+    <p>A healthy mix matters. If everything comes from one place, you're exposed if that one place changes.</p>`,
+  devices: `<p>What people were holding when they looked at your site.</p>
+    <p>For most local service businesses, <b>two thirds or more are on a phone</b>. That's why we check how the site behaves on a small screen first — how fast it loads on mobile data, whether the phone number is reachable with a thumb, how much scrolling it takes to get to the point.</p>
+    <p>If the phone share is high and enquiries are low, the mobile version is the first place we look.</p>`,
+  search: `<p>This is what happens on Google before anyone reaches your site.</p>
+    <span class="t">Shown</span><p>How many times your site appeared in someone's search results. Also called impressions. It means Google thought you were relevant.</p>
+    <span class="t">Clicks</span><p>How many of those people actually chose you over everyone else on the page.</p>
+    <span class="t">Position</span><p>Your average spot in the results for that search. Position 1 is the top. <b>Anything up to about 10 is page one.</b> The first three results take the large majority of clicks, so moving from 8 to 4 can double your traffic for that search without anything else changing.</p>
+    <span class="t">Why being shown a lot but clicked rarely matters</span><p>It usually means your title and description don't match what the person was looking for. That's a quick fix and often the cheapest win available.</p>`,
+  pages: `<p>Which pages people spent their time on.</p>
+    <p><b>Views</b> is how many times the page was opened. <b>Average time</b> is how long people stayed on it.</p>
+    <p>A page with lots of views and very little time usually means one of two things: people didn't find what they expected, or they found it instantly and left satisfied. We look at what the page asks people to do next to tell the difference.</p>`,
+  leads: `<p>Everyone who reached out through the website in this period, newest first.</p>
+    <p>These come straight from your forms, so this is the real list — not an estimate. If someone phoned you directly without using the site, they won't appear here.</p>
+    <p>The speed you reply matters more than almost anything else on this page. Most people contact more than one business, and the first to respond usually wins the job.</p>`,
+  work: `<p>Everything we shipped on your site in this period, grouped by what it was trying to achieve rather than listed as a to-do list.</p>
+    <p>Some of this shows up in the numbers straight away — a faster page, a clearer form. Some of it takes weeks to land, particularly anything aimed at Google, because search results move slowly.</p>
+    <p>If something here isn't clear, ask. It's your site and you should know what changed on it.</p>`,
+  moved: `<p>The changes big enough to be worth your attention, compared with the period before.</p>
+    <p>We include the things that went the wrong way as well as the things that went right. A report that only shows good news isn't much use to you, and anything going backwards is easier to fix early.</p>
+    <p>Where something dropped, you'll find what we think caused it and what we're doing about it.</p>`,
+  room: `<p>These aren't guesses. Each one comes from something visible in your own numbers this period — a search sitting just off page one, a page people leave quickly, enquiries that outpaced or lagged your traffic.</p>
+    <p>Each has a plan attached. These are what we work on next, and you'll see them again in the next report with whatever moved.</p>`
+};
+
+addEventListener('beforeprint', () => document.querySelectorAll('.xp').forEach(d => { d.dataset.was = d.open?'1':'0'; d.open = true; }));
+addEventListener('afterprint', () => document.querySelectorAll('.xp').forEach(d => { if (d.dataset.was === '0') d.open = false; }));
+
 function animateDoc(){
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // reveal
@@ -1081,12 +1149,14 @@ function docHtml(){
   const on = k => show[k] !== false;
   let chapter = 1;
   const SC = ['#1257FF','#06B6D4','#7C5CFF','#10B981','#F59E0B','#FF4D8D'];
+  const xp = key => EXPLAIN[key] ? `<details class="xp"><summary>Explain this in more detail</summary>
+      <div class="xpb">${EXPLAIN[key]}</div></details>` : '';
   const sec = (key, title, body, plain='', extra='') => {
     if (!body || !on(key)) return '';
     chapter++;
     return `<section class="card dsec rv ${extra}" style="--sc:${SC[(chapter-1)%SC.length]}">
       <h3><span class="chno">${String(chapter).padStart(2,'0')}</span>${title}</h3>
-      ${plain?`<p class="plain">${plain}</p>`:''}${body}</section>`;
+      ${plain?`<p class="plain">${plain}</p>`:''}${body}${xp(key)}</section>`;
   };
 
   /* numbers */
@@ -1193,24 +1263,28 @@ function docHtml(){
       ${on('highlights') ? hl : ''}
     </section>
     <section class="card dsec rv" style="--sc:#10B981"><h3><span class="chno">01</span>${p.kind==='month'?'The month':'The period'} at a glance</h3>
-      <div class="kpis" style="margin-top:14px">${nums.join('')}</div></section>
+      <p class="plain">The headline numbers for this period, each one next to the same stretch of days before it.</p>
+      <div class="kpis" style="margin-top:14px">${nums.join('')}</div>
+      <details class="xp"><summary>What each of these actually means</summary><div class="xpb">${EXPLAIN.glance}</div></details></section>
     ${sec('chart','Visitors, day by day', chart,
-      'Each point is one day. The dashed line behind it is the same stretch before, so you can see the shape of it rather than just a total.')}
+      'Every dot is one day, so you can see the rhythm of the period rather than just a total.')}
     ${((sources&&on('sources'))||(devices&&on('devices'))) ? `<div class="split">
       ${sources&&on('sources')?`<section class="card dsec rv" style="--sc:#06B6D4"><h3><span class="chno">${String(++chapter).padStart(2,'0')}</span>Where visitors came from</h3>
-        <p class="plain">How people arrived. Search means they found you on Google; direct means they typed the address or already knew you.</p>${sources}</section>`:''}
+        <p class="plain">How people arrived at the site.</p>${sources}
+        <details class="xp"><summary>Explain this in more detail</summary><div class="xpb">${EXPLAIN.sources}</div></details></section>`:''}
       ${devices&&on('devices')?`<section class="card dsec rv" style="--sc:#7C5CFF"><h3><span class="chno">${String(++chapter).padStart(2,'0')}</span>What they were using</h3>
-        <p class="plain">Phone, computer or tablet. If most are on a phone, that's the version that matters most.</p>${devices}</section>`:''}</div>` : ''}
+        <p class="plain">Phone, computer or tablet.</p>${devices}
+        <details class="xp"><summary>Explain this in more detail</summary><div class="xpb">${EXPLAIN.devices}</div></details></section>`:''}</div>` : ''}
     ${sec('search','How you show up on Google', search,
-      'Position 1 is the top result. Anything above 10 is page one — below that, very few people ever look.')}
+      'What happens on Google before anyone reaches your site. <b>Position 1 is the top result, and page one ends around 10.</b>')}
     ${sec('pages','Most-visited pages', pages,
-      'Where people actually spent their time, and how long they stayed on each page.')}
+      'Where people spent their time once they arrived.')}
     ${sec('leads','Enquiries', leads,
-      'Everyone who got in touch through the site in this period.')}
+      'Everyone who reached out through the website in this period.')}
     ${sec('work','What we did', groups)}
     ${sec('moved','What moved', moved,
-      'What changed in the numbers, including anything that went the wrong way.')}
-    ${sec('room','Where we see room, and what we\'ll do', room, '', 'room')}
+      'The changes worth your attention — <b>including anything that went the wrong way.</b>')}
+    ${sec('room','Where we see room, and what we\'ll do', room, 'Each one found in your own numbers, each with a plan attached.', 'room')}
     ${(next && on('next'))?`<section class="card dsec dnext rv" style="--sc:#FF4D8D">
       <h3><span class="chno">${String(++chapter).padStart(2,'0')}</span>What we're doing ${esc(p.nextLabel)}</h3><ol>${next}</ol></section>`:''}
     <section class="card dsec closing rv">
