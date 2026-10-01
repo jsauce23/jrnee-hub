@@ -515,6 +515,58 @@ async function askTarget(cid, reportId, days) {
   return liveToReport(c, live, n);
 }
 
+
+/* The bottom-of-dashboard summary. Rebuilt from live figures on every load,
+   so it moves as the numbers move. */
+function liveBrief(c, live, days) {
+  const rep = liveToReport(c, live, days);
+  const n = rep.numbers, nar = rep.content;
+  const lead = n.leads || n.keyEvents;
+  const pc = (a, b) => (b ? Math.round((a - b) / b * 100) : null);
+  const good = [], watch = [];
+
+  if (lead && lead.prev != null) {
+    const d = pc(lead.cur, lead.prev);
+    (d >= 0 ? good : watch).push(d >= 0
+      ? `${lead.cur} ${lead.cur === 1 ? 'person has' : 'people have'} got in touch, ${d > 0 ? `up ${d}% on` : 'level with'} the ${days} days before`
+      : `enquiries are running ${Math.abs(d)}% behind the ${days} days before`);
+  }
+  if (n.visitors && n.visitors.prev) {
+    const d = pc(n.visitors.cur, n.visitors.prev);
+    (d >= 0 ? good : watch).push(d >= 0
+      ? `${n.visitors.cur.toLocaleString()} people have visited, up ${d}% on the previous stretch`
+      : `visits are ${Math.abs(d)}% down on the previous stretch`);
+  }
+  if (n.clicks && n.clicks.prev) {
+    const d = pc(n.clicks.cur, n.clicks.prev);
+    if (d >= 0) good.push(`Google sent ${n.clicks.cur.toLocaleString()} clicks, up ${d}%`);
+    else watch.push(`clicks from Google are ${Math.abs(d)}% lower`);
+  }
+  if (nar.keywords && nar.keywords.pageOne) good.push(`${nar.keywords.pageOne} of your searches sit on page one`);
+
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  let state;
+  if (good.length && !watch.length) state = `${cap(good.slice(0, 2).join(', and '))}. A good stretch, and the work behind it keeps running.`;
+  else if (good.length && watch.length) state = `${cap(good[0])}. At the same time ${watch[0]} — we can see it, and it's already on the list below.`;
+  else if (watch.length) state = `It's been a quieter stretch: ${watch.slice(0, 2).join(', and ')}. Nothing here is a surprise to us, and the work below is aimed squarely at it.`;
+  else state = `We're still gathering enough data to call a trend. Everything below is what we're working on in the meantime.`;
+
+  const focuses = [];
+  const asWork = t => t.replace(/^We'll\s+/i, '').replace(/^We\s+/i, '').replace(/\.$/, '');
+  (nar.room || []).slice(0, 3).forEach(r => { if (r.fix) focuses.push({ because: r.title, doing: cap(asWork(r.fix)) }); });
+  (nar.next || []).forEach(x => { if (focuses.length < 3) focuses.push({ because: null, doing: cap(asWork(x)) }); });
+  if (!focuses.length) focuses.push({ because: null, doing: 'Keeping the site fast, indexed and easy to get in touch through' });
+
+  return {
+    asOf: new Date().toISOString(),
+    state,
+    focuses,
+    closing: lead && lead.cur
+      ? `Someone reaching out is the whole point of all of this — reply quickly and the rest takes care of itself.`
+      : `Everything above feeds the same goal: more of the right people finding you, and finding it easy to get in touch.`
+  };
+}
+
 /* ---------------- report assembly + cache ---------------- */
 const publicClient = c => ({ id: c.id, name: c.name, legal: c.legal || c.name, domain: c.domain || '', initials: c.initials || c.name.slice(0, 2).toUpperCase(), status: c.status || '' });
 const gaId = c => String(c.ga4PropertyId || '').replace(/\D/g, '');
@@ -921,7 +973,9 @@ http.createServer(async (req, res) => {
       let n = parseInt(u.searchParams.get('days'), 10);
       if (![7, 28, 90].includes(n)) n = 28;
       const r = await cached(`r:${c.id}:${n}`, () => buildReport(c, n), u.searchParams.has('refresh'));
-      return json(res, 200, r);
+      let brief = null;
+      try { brief = liveBrief(c, r, n); } catch (e) { brief = null; }
+      return json(res, 200, { ...r, brief });
     }
 
     send(res, 404, 'text/plain', 'Not found');

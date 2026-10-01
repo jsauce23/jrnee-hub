@@ -501,6 +501,52 @@ body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surf
 .sec .chart .tipg2{fill:#A78BFA;opacity:.22;animation:tp 2.6s ease-out infinite}
 @media (prefers-reduced-motion:reduce){.rv2{opacity:1!important;transform:none!important}
   .sec .chart .dr{animation:none;stroke-dashoffset:0}}
+
+/* ---------- hero date, big ask box, closing summary ---------- */
+.hero .when{margin-top:14px}
+.hero .when b{display:block;font-size:16.5px;font-weight:700;letter-spacing:-.02em;color:#DCE8FB}
+.hero .when span{display:block;font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;color:#8FA9D0;margin-top:3px}
+.bigask{margin-top:20px;border-radius:16px;padding:18px 20px;cursor:pointer;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);
+  display:flex;align-items:center;gap:15px;transition:background .25s,transform .25s,border-color .25s}
+.bigask:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.34);transform:translateY(-2px)}
+.bigask .mk{width:42px;height:42px;border-radius:13px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(135deg,#22D3EE,#1257FF 55%,#A78BFA);box-shadow:0 8px 20px -10px rgba(34,211,238,.9)}
+.bigask .mk svg{width:21px;height:21px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.bigask .t{flex:1;min-width:0}
+.bigask b{display:block;font-size:16px;font-weight:800;letter-spacing:-.025em;color:#fff}
+.bigask span{display:block;font-size:13.5px;color:#A8C0E4;margin-top:2px}
+.bigask .go{color:#9CC0FF;font-size:19px;flex:none}
+.askwrap.big{margin-top:0}
+.askwrap.big .askpanel{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.2);margin-top:14px}
+.askwrap.big .askpanel .ah{color:#fff}
+.askwrap.big .askpanel .close{color:#9FB6DA}
+.askwrap.big .sugg button{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#EAF1FF}
+.askwrap.big .sugg button:hover{border-color:rgba(255,255,255,.4)}
+.askwrap.big .askform input{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff}
+.askwrap.big .askform input::placeholder{color:#8FA9D0}
+.askwrap.big .qq{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#fff}
+.askwrap.big .aa{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.2);color:#D6E3F7}
+
+.sumcard{margin-top:16px;border-radius:20px;padding:30px 26px;position:relative;overflow:hidden;
+  background:linear-gradient(140deg,#0A1224,#132A5E 55%,#1B2F6B);color:#fff;border:0}
+.sumcard::before{content:"";position:absolute;right:-130px;top:-150px;width:460px;height:460px;
+  background:radial-gradient(closest-side,rgba(34,211,238,.26),transparent 72%)}
+.sumcard > *{position:relative}
+.sumcard .eyebrow{color:#8FB4FF}
+.sumcard h2{font-size:clamp(21px,3.2vw,27px);font-weight:800;letter-spacing:-.04em;margin-top:9px;line-height:1.25;max-width:34ch}
+.sumcard .st{color:#C7D6EE;font-size:16px;line-height:1.65;margin-top:14px;max-width:62ch}
+.foc{display:grid;gap:11px;margin-top:22px}
+.foc .f{display:flex;gap:13px;align-items:flex-start;background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:15px 16px}
+.foc .n{font-family:var(--mono);font-size:10.5px;color:#9CC0FF;background:rgba(255,255,255,.1);
+  border-radius:7px;padding:4px 8px;flex:none}
+.foc b{display:block;font-weight:700;color:#fff;font-size:14.8px;line-height:1.45}
+.foc span{display:block;font-size:13.5px;color:#9FB6DA;margin-top:4px}
+.sumcard .close2{margin-top:20px;color:#A8C0E4;font-size:15px;line-height:1.6;max-width:58ch}
+.sumcard .upd{margin-top:18px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:#6F88B4}
+
 @media print{.rv2{opacity:1!important;transform:none!important}.sec .chart .dr{animation:none;stroke-dashoffset:0}}
 
 @media print{ .askwrap{display:none!important} }
@@ -891,6 +937,37 @@ function liveExplain(key, ga, gs, ld, n){
     <div class="xpb">${data}${(data && gen) ? '<div class="xpsep">In general</div>' : ''}${gen}</div></details>`;
 }
 
+
+
+/* the closing summary — rebuilt from live figures every time the page loads */
+function briefCard(b, c, n){
+  if (!b) return '';
+  const hour = new Date().getHours();
+  const hi = hour < 12 ? 'Have a good morning' : hour < 17 ? 'Have a good afternoon' : 'Have a good evening';
+  const first = String(c.name || '').split(' ')[0];
+  return `<section class="sumcard rv2">
+    <div class="eyebrow">Where things stand</div>
+    <h2>Here's how your website is doing right now.</h2>
+    <p class="st">${esc(b.state)}</p>
+    ${b.focuses && b.focuses.length ? `<div class="foc">${b.focuses.map((f, i) => `
+      <div class="f"><span class="n">${String(i+1).padStart(2,'0')}</span>
+        <div><b>${esc(f.doing)}</b>${f.because ? `<span>Because ${esc(f.because.charAt(0).toLowerCase() + f.because.slice(1))}</span>` : ''}</div>
+      </div>`).join('')}</div>` : ''}
+    <p class="close2">${esc(b.closing)} ${esc(hi)}${first ? ', ' + esc(first) : ''}.</p>
+    <div class="upd">Updated ${esc(new Date(b.asOf).toLocaleString('en-US',{ hour:'numeric', minute:'2-digit', month:'short', day:'numeric' }))} · recalculated from your figures every time you open this</div>
+  </section>`;
+}
+
+function dashClock(){
+  const t = document.getElementById('todayLine'), k = document.getElementById('clockLine');
+  if (!t || !k) return;
+  const d = new Date();
+  t.textContent = 'It is ' + d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const time = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }).replace(' ', '').toLowerCase();
+  const zone = (d.toLocaleTimeString('en-US', { timeZoneName:'short' }).split(' ').pop()) || '';
+  k.textContent = time + ' ' + zone;
+}
+
 function animateDash(){
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   view.querySelectorAll('.sec.card, .kpi').forEach(e => e.classList.add('rv2'));
@@ -1034,7 +1111,15 @@ async function showReport(fresh){
         <span class="tile big">${esc(c.initials)}</span>
         <div><div class="eyebrow">Your website, right now</div>
           <h1>Welcome back, ${esc(c.name)}</h1>
-          <div class="stamp" id="liveStamp">${esc(c.domain)}</div></div>
+          <div class="when"><b id="todayLine"></b><span id="clockLine"></span></div></div>
+      </div>
+      <div class="askwrap big" data-ask="overall">
+        <div class="bigask">
+          <span class="mk">${ASK_ICON}</span>
+          <span class="t"><b>Have a question?</b>
+            <span>JRNEE is here to break it down for you — ask anything about these numbers</span></span>
+          <span class="go">→</span>
+        </div>
       </div>
       ${wins.length ? `<div class="hwins">${wins.map(x =>
         `<div class="hwin" style="--wc:${x.colour}"><b data-count2="${esc(x.big)}">0</b><span>${esc(x.label)}</span></div>`).join('')}</div>` : ''}
@@ -1059,12 +1144,26 @@ async function showReport(fresh){
     <section class="sec card ${hp(gsState)}"><div class="sec-h"><h2>What people searched on Google</h2><p>Searches where this site showed up${gs ? ` · data to ${esc(gs.range.endDate)}` : ''}</p></div>${queries}${liveExplain('search', ga, gs, ld, n)}${askBlock('search')}</section>
     <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>Most-visited pages</h2></div>${pages}${liveExplain('pages', ga, gs, ld, n)}${askBlock('pages')}</section>
     <section class="sec card ${hp(ldState)}"><div class="sec-h"><h2>Leads from the website</h2><p>Every form submission, newest first</p></div>${leads}${liveExplain('leads', ga, gs, ld, n)}${askBlock('leads')}</section>
-    <div class="foot"><span>Prepared by JRNEE Technologies LLC for ${esc(c.legal)}</span><span>Sources: Google Analytics · Google Search Console · Netlify</span></div>`;
+    ${briefCard(r.brief, c, n)}
+    <section class="card brandfoot rv2">
+      <svg class="bmark" viewBox="0 0 34 34" aria-hidden="true">
+        <rect width="34" height="34" rx="10" fill="#1257FF"/>
+        <path d="M11 10.5 H23 V20.5 A5 5 0 0 1 13 20.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+        <circle cx="11" cy="10.5" r="2.9" fill="#fff"/></svg>
+      <div class="bword">JRNEE<i>.ai</i></div>
+      <div class="btag">Custom AI-powered software built around how your business already runs</div>
+      <div class="bline"></div>
+      <div class="bmeta"><span>Prepared for ${esc(c.legal)}</span>
+        <span>Google Analytics · Search Console · Netlify</span></div>
+      <div class="bmeta" style="margin-top:6px"><span>JRNEE Technologies LLC · jrnee.ai</span></div>
+    </section>`;
 
   view.querySelectorAll('.pills button').forEach(b => b.onclick = () => { state.days = +b.dataset.d; store('hub-days', String(state.days)); showReport(); });
   const rb = $('#refreshRep'); if (rb) rb.onclick = () => showReport(true);
   wireAsk();
   animateDash();
+  dashClock();
+  clearInterval(window.__clk); window.__clk = setInterval(dashClock, 30000);
 }
 
 
@@ -1656,7 +1755,8 @@ function askBlock(section){
 async function openAsk(wrap){
   const section = wrap.dataset.ask;
   if (wrap.querySelector('.askpanel')) return;
-  wrap.querySelector('.askbtn').style.display = 'none';
+  const trigger = wrap.querySelector('.askbtn, .bigask');
+  if (trigger) trigger.style.display = 'none';
   wrap.insertAdjacentHTML('beforeend', `<div class="askpanel">
     <div class="ah"><span class="mk">${ASK_MARK}</span>Ask JRNEE
       <button class="close" type="button" aria-label="Close">&times;</button></div>
@@ -1666,7 +1766,7 @@ async function openAsk(wrap){
       <button type="submit">Ask</button></form>
   </div>`);
   const panel = wrap.querySelector('.askpanel');
-  panel.querySelector('.close').onclick = () => { panel.remove(); wrap.querySelector('.askbtn').style.display = ''; };
+  panel.querySelector('.close').onclick = () => { panel.remove(); if (trigger) trigger.style.display = ''; };
 
   const qs = new URLSearchParams({ report: ASK_CTX.report, section });
   if (ASK_CTX.days) qs.set('days', ASK_CTX.days);
@@ -1711,6 +1811,8 @@ async function sendAsk(panel, section, question){
 
 function wireAsk(){
   view.querySelectorAll('[data-ask] .askbtn').forEach(b =>
+    b.onclick = () => openAsk(b.closest('[data-ask]')));
+  view.querySelectorAll('[data-ask] .bigask').forEach(b =>
     b.onclick = () => openAsk(b.closest('[data-ask]')));
 }
 

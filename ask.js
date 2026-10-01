@@ -356,6 +356,11 @@ function suggestions(section, rep) {
   const lead = n.leads || n.keyEvents;
   const dir = (cur, prev) => (prev && cur < prev) ? 'drop' : 'change';
   const S = {
+    overall: [
+      'How are things looking overall right now?',
+      'What should I be paying attention to this month?',
+      'What are you working on for me at the moment?'
+    ],
     glance: [
       n.visitors && n.visitors.prev ? `Why did visits ${dir(n.visitors.cur, n.visitors.prev)} compared with ${p.prevPhrase || 'last period'}?` : 'What do these four numbers actually mean?',
       lead ? 'Is this a good number of enquiries for a business like mine?' : 'How do you count an enquiry?',
