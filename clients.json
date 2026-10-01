@@ -20,5 +20,18 @@
     "ga4PropertyId": "555878894",
     "gscSiteUrl": "sc-domain:junkjuicers.com",
     "netlifySiteId": "2ffb23b6-324e-4390-b32b-ef1656adf04b"
+  }  {
+    "id": "staycation",
+    "name": "Staycation Fiberglass Pools",
+    "legal": "Staycation Fiberglass Pools",
+    "domain": "staycationfiberglasspools.com",
+    "initials": "SP",
+    "status": "Taking over",
+    "ga4PropertyId": "",
+    "gscSiteUrl": "sc-domain:staycationfiberglasspools.com",
+    "netlifySiteId": "",
+    "ghlLocationId": "DFvqy4IoiWRyMxqjSeJu",
+    "ghlSource": "",
+    "ghlTags": []
   }
 ]
