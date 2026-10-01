@@ -204,9 +204,9 @@ function analyseKeywords(n) {
     fresh: rows.filter(r => r.isNew && r.impressions >= 20)
                .sort((a,b)=> b.impressions - a.impressions).slice(0, 6),
     pageOne: rows.filter(r => r.position <= 10).length,
-    pageOnePrev: (n.queriesPrev || []).filter(r => r.position <= 10).length,
+    pageOnePrev: (n.queriesPrev || []).length ? (n.queriesPrev || []).filter(r => r.position <= 10).length : null,
     total: rows.length,
-    totalPrev: (n.queriesPrev || []).length
+    totalPrev: (n.queriesPrev || []).length || null
   };
 }
 

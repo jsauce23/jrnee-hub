@@ -50,7 +50,7 @@ function classify(question) {
 
 /* Every answer ends with what's being done. These come from the report's own plans,
    so they're work that's genuinely queued, not reassurance. */
-function closer(rep, topic) {
+function closer(rep, topic, mood) {
   const c = rep.content || {};
   const fromMoved = (c.moved || []).find(m => m.down && m.fix);
   const room = (c.room || []).filter(r => r.fix);
@@ -63,53 +63,65 @@ function closer(rep, topic) {
     const q = (chosen.title || (match && match.title) || '').match(/[“"']([^”"']+)[”"']/);
     if (q && /this search|that search|this page|that page/i.test(fix))
       fix = fix.replace(/this search|that search/i, `“${q[1]}”`).replace(/this page|that page/i, `the page behind “${q[1]}”`);
-    return `Joel and the team are already on it — ${fix.charAt(0).toLowerCase() + fix.slice(1)}`;
+    const opener = mood === 'good'
+      ? 'Next up, Joel and the team are building on it —'
+      : 'Joel and the team are already on it —';
+    return `${opener} ${fix.charAt(0).toLowerCase() + fix.slice(1)}`;
   }
   if ((c.next || []).length) return `Joel and the team are working on ${c.next[0].charAt(0).toLowerCase() + c.next[0].slice(1)} next.`;
   return `Joel and the team are looking at it, and it'll be in the next report either way.`;
 }
 
 
-/* "How are things looking?" — the question everyone asks first. */
+/* "How are things looking?" — the question everyone asks first.
+   Lead with what's working, give the honest movement without alarm, then the plan. */
 function overallAnswer(rep) {
   const n = rep.numbers || {}, c = rep.content || {}, p = rep.period || {};
   const lead = n.leads || n.keyEvents;
   const pc = (a, b) => (b ? Math.round((a - b) / b * 100) : null);
-  const prev = p.prevPhrase || 'the period before';
-  const up = [], down = [], plain = [];
+  const vs = p.vs || (p.prevPhrase || 'the period before').replace(/^in\s+/i, '');
+  const up = [], down = [];
 
-  const note = (label, cur, prv, fmt) => {
-    if (cur == null) return;
-    const v = fmt ? fmt(cur) : nf(cur);
-    if (prv == null || !prv) { plain.push(`${label} sit at ${v}`); return; }
+  const note = (label, cur, prv) => {
+    if (cur == null || prv == null || !prv) return;
     const d = pc(cur, prv);
-    const line = `${label} ${d > 0 ? 'are up' : d < 0 ? 'are down' : 'are level'}${d ? ` ${Math.abs(d)}%` : ''} at ${v}`;
-    (d >= 0 ? up : down).push(line);
+    if (d > 0) up.push(`${label} are up ${d}% at ${nf(cur)}`);
+    else if (d < 0) down.push({ label, text:`${label} are at ${nf(cur)}, ${Math.abs(d)}% off ${nf(prv)}` });
   };
   if (lead) note('enquiries', lead.cur, lead.prev);
   if (n.visitors) note('visits', n.visitors.cur, n.visitors.prev);
   if (n.clicks) note('clicks from Google', n.clicks.cur, n.clicks.prev);
 
-  if (!up.length && !down.length && !plain.length) {
+  // standing positives, true regardless of direction
+  const steady = [];
+  if (c.keywords && c.keywords.pageOne)
+    steady.push(`you're on page one of Google for ${c.keywords.pageOne} search${c.keywords.pageOne === 1 ? '' : 'es'}`
+      + (c.keywords.pageOnePrev != null ? `, against ${c.keywords.pageOnePrev} ${vs === 'the period before' ? 'before' : 'in ' + vs}` : ''));
+  if (lead && n.visitors && n.visitors.cur && lead.cur)
+    steady.push(`the site is turning about one in every ${Math.round(n.visitors.cur / lead.cur)} visitors into an enquiry`);
+  if (!up.length && !down.length && n.visitors)
+    steady.push(`${nf(n.visitors.cur)} people visited in this period`);
+
+  if (!up.length && !down.length && !steady.length) {
     return { text:
-      `I can't see any figures for this period yet — the accounts behind this report are still being connected. `
-      + `Joel and the team are on that, and the moment data starts flowing it'll show up right here.`,
+      `The figures for this period are still coming through — the accounts behind this report were connected recently, so there isn't a full stretch to compare against yet. `
+      + `Joel and the team are watching it, and the picture will be complete in the next report.`,
       routed: false, flagged: false };
   }
 
-  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
   const bits = [];
-  if (up.length && !down.length) bits.push(`${cap(up.slice(0, 2).join(', and '))} on ${prev}. A good run.`);
-  else if (up.length && down.length) bits.push(`Mixed, and worth knowing both halves: ${up[0]}, while ${down[0]}, compared with ${prev}.`);
-  else if (down.length) bits.push(`${cap(down.slice(0, 2).join(', and '))} on ${prev}.`);
-  else bits.push(`${cap(plain.join(', and '))} for this period.`);
 
-  if (lead && n.visitors && n.visitors.cur && lead.cur)
-    bits.push(`That's about one enquiry for every ${Math.round(n.visitors.cur / lead.cur)} people who land on the site.`);
-  if (c.keywords && c.keywords.pageOne)
-    bits.push(`You're on page one of Google for ${c.keywords.pageOne} search${c.keywords.pageOne === 1 ? '' : 'es'}${c.keywords.pageOnePrev != null ? `, against ${c.keywords.pageOnePrev} ${prev}` : ''}.`);
-  if (down.length) bits.push(`Nothing there is a surprise to us.`);
-  bits.push(closer(rep));
+  if (up.length) bits.push(`${cap(up.slice(0, 2).join(', and '))} on ${vs}.`);
+  else if (steady.length) bits.push(`${cap(steady.shift())}.`);
+
+  if (down.length) {
+    bits.push(`${up.length || bits.length ? 'The one to keep an eye on' : 'Worth flagging'}: ${down[0].text}.`);
+    bits.push(`That kind of movement month to month is normal — search traffic shifts with the season, with what competitors are doing, and with how Google weights results that week. One period on its own isn't a trend, and we look at this weekly rather than waiting for the report, so if it turns into one we'll be on it before you'd notice.`);
+  }
+
+  steady.slice(0, 1).forEach(sline => bits.push(`${cap(sline)}.`));
+  bits.push(closer(rep, down.length ? 'search' : null, down.length ? 'fix' : 'good'));
   return { text: bits.join(' '), routed: false, flagged: false };
 }
 
@@ -157,8 +169,9 @@ function answerFromData(question, rep) {
         : `The figures lean towards the last one — you were shown just as often, so it's about which result people chose.`;
       bits.push(`A dip like this usually comes down to one of three things: fewer people searching at this time of year, a competitor climbing above you, or one of your pages slipping a few places. ${lean}`);
     }
+    if (ch !== null && ch < 0) bits.push(`For what it's worth, a single quieter period is normal — traffic moves with the season, with competitors, and with how Google weights results that week. We watch this weekly rather than waiting for the report, so a real trend gets caught early.`);
     if (k.pointed) bits.push(`You're pointing at something longer than one period, which is fair — I've flagged it so Joel looks across the whole run and comes back to you directly.`);
-    bits.push(closer(rep, 'search'));
+    bits.push(closer(rep, 'search', (ch !== null && ch < 0) ? 'fix' : 'good'));
     return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
   }
 
@@ -225,9 +238,9 @@ function answerFromData(question, rep) {
       const withPhone = n.leadItems.filter(l => l.phone).length;
       if (withPhone) bits.push(`${withPhone} of the ones listed left a phone number, and calling back the same day tends to matter more than anything else on the page.`);
     }
-    if (ch !== null && ch < 0) bits.push(`When enquiries dip but visits hold up, it's usually about what happens once people land — how easy the form is, how obvious the phone number is on a small screen. When visits dip too, it's a traffic question instead.`);
+    if (ch !== null && ch < 0) bits.push(`Enquiry counts bounce around more than traffic does, especially on smaller numbers — a couple either way isn't a pattern. When they dip while visits hold up it usually points at what happens once people land; when visits dip too, it's a traffic question instead.`);
     if (k.pointed) bits.push(`I've flagged this so Joel picks it up with you directly.`);
-    bits.push(closer(rep, 'enquir'));
+    bits.push(closer(rep, 'enquir', (ch !== null && ch < 0) ? 'fix' : 'good'));
     return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
   }
 
@@ -304,6 +317,15 @@ VOICE
 - Three to five sentences. Enough to actually answer, short enough to read mid-scroll.
 - No jargon unless you explain it in the same breath. No bullet points, no headings, no sign-off.
 - Don't hedge everything into mush. If the data points somewhere, say so.
+
+POSTURE WHEN SOMETHING IS DOWN
+Lead with something that is genuinely going well before you get to the dip — there is almost always
+one. State the dip plainly, then steady it: month-to-month movement is normal, it moves with the
+season, with competitors, and with how Google weights results that week, and one period is not a
+trend. Say that the team watches it weekly rather than waiting for the report, so a real trend gets
+caught early. Then the plan. The reader should finish calm and clear that someone is ahead of it.
+Never spin a decline into good news, and never pretend a number is something it isn't — the
+reassurance has to be true or it costs more than it gains.
 
 BROAD QUESTIONS
 "How are things looking?", "are our numbers up?", "is this good?" — these are the most common
