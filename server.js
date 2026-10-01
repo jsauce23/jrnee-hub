@@ -874,6 +874,11 @@ http.createServer(async (req, res) => {
       return json(res, 200, { suggestions: ASK.suggestions(u.searchParams.get('section'), rep) });
     }
 
+    if (u.pathname === '/api/ask/health') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      return json(res, 200, await ASK.health());
+    }
+
     if (u.pathname === '/api/asks') {
       if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
       const threads = ASK.listThreads().map(t => {

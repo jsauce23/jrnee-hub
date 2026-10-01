@@ -28,6 +28,9 @@ const LEGAL = ['legal advice','sue','lawsuit','liable','liability','contract law
 function classify(question) {
   const q = ' ' + String(question || '').toLowerCase().trim() + ' ';
   return {
+    progress: has(q, ['progress','improving','getting better','moving in the right direction','paying off',
+      'is it working','working yet','see results','any results','making headway','going anywhere','worth it yet',
+      'trending','over time','since we started','compared to when']),
     overall: has(q, ['how are things','how is it going','how are we doing','how we doing','overall',
       'right now','how is everything','how are my numbers','are our numbers','are my numbers','numbers up',
       'numbers down','how did we do','how are we looking','looking good','doing well','any good news',
@@ -145,6 +148,8 @@ function overallAnswer(rep) {
 }
 
 /* ---------------- answers, built only from this report ---------------- */
+const vsLabel = p => (p.vs || (p.prevPhrase || 'the period before').replace(/^in\s+/i, ''));
+
 function answerFromData(question, rep) {
   const n = rep.numbers || {}, c = rep.content || {}, p = rep.period || {};
   const k = classify(question);
@@ -182,6 +187,33 @@ function answerFromData(question, rep) {
     bits.push(`This period it broke down as ${list}.`);
     bits.push(`Search traffic is the part that compounds — it keeps arriving without being paid for. Direct means people who already knew your name.`);
     bits.push(closer(rep, 'search', 'good'));
+    return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
+  }
+
+  if (k.progress) {
+    const kw = c.keywords, bits = [];
+    const moves = [];
+    const pcc = (a, b) => (b ? Math.round((a - b) / b * 100) : null);
+    if (lead && lead.prev) moves.push({ label:'enquiries', d: pcc(lead.cur, lead.prev) });
+    if (n.visitors && n.visitors.prev) moves.push({ label:'visits', d: pcc(n.visitors.cur, n.visitors.prev) });
+    if (n.position && n.position.prev) moves.push({ label:'average position', d: +(n.position.prev - n.position.cur).toFixed(1), pos:true });
+    const wins = moves.filter(m => m.d > 0);
+
+    if (n.position && n.position.prev && n.position.prev > n.position.cur)
+      bits.push(`The clearest sign is where you sit in Google: average position ${n.position.prev} to ${n.position.cur}. That's the number that moves slowest and matters longest — it's the foundation everything else sits on.`);
+    else if (kw && kw.pageOne)
+      bits.push(`The steadiest marker is page one: you're showing up there for ${kw.pageOne} search${kw.pageOne === 1 ? '' : 'es'} right now.`);
+    if (wins.length) bits.push(`Alongside that, ${wins.map(w => `${w.label} ${w.pos ? 'improved by ' + w.d : 'up ' + w.d + '%'}`).join(' and ')} against ${vsLabel(p)}.`);
+    if (kw && kw.fresh && kw.fresh.length)
+      bits.push(`You've also started appearing for ${kw.fresh.length} search${kw.fresh.length === 1 ? '' : 'es'} you weren't showing up for at all before, which is usually the first thing to move.`);
+    if ((c.groups || []).length) {
+      const count = c.groups.reduce((t, g) => t + g.items.length, 0);
+      const themes = c.groups.slice(0, 2).map(g => g.b.charAt(0).toLowerCase() + g.b.slice(1));
+      bits.push(`On our side, ${count} ${count === 1 ? 'change has' : 'changes have'} gone live in this period — ${themes.join(', and ')}.`);
+    }
+    if (!bits.length) bits.push(`There isn't a long enough run of data yet to call it either way — the honest answer is that it's too early to read a trend.`);
+    bits.push(`Search work compounds rather than spikes, so the shape to look for is a line that climbs over months, not a jump between two of them.`);
+    bits.push(closer(rep, null, wins.length ? 'good' : 'fix'));
     return { text: bits.join(' '), routed: false, flagged: !!k.pointed };
   }
 
@@ -301,13 +333,34 @@ function answerFromData(question, rep) {
   // devices
   if (k.devices && n.devices && n.devices.length) {
     const tot = n.devices.reduce((a, d) => a + d.sessions, 0) || 1;
-    const mob = n.devices.find(d => d.name === 'mobile');
-    const share = mob ? Math.round(mob.sessions / tot * 100) : 0;
+    const q = String(question).toLowerCase();
+    const get = nm => n.devices.find(d => new RegExp(nm, 'i').test(d.name));
+    const pcOf = d => Math.round((d ? d.sessions : 0) / tot * 100);
+    const mob = get('mobile'), desk = get('desktop'), tab = get('tablet');
+    const asksWhy = /\bwhy\b|how come|what does that mean|is that bad|should i/.test(q);
+
+    if (/tablet|ipad/.test(q)) {
+      return { text:
+        `Tablets are at ${pcOf(tab)}% — ${nf(tab ? tab.sessions : 0)} of ${nf(tot)} visits. That's completely normal and nothing to read into: `
+        + `tablet use has been falling for years, and for local service businesses it usually lands somewhere between nothing and about 3%. `
+        + `People reach for a phone when they're out and a computer when they're sitting down, and the tablet sits unused between the two. `
+        + `It also doesn't need its own attention — a tablet gets served the same layout as a phone or a desktop depending on how it's held, so it's already covered by the work that goes into those two.`,
+        routed: false, flagged: false };
+    }
+    if (asksWhy && desk && mob) {
+      const deskHigh = pcOf(desk) >= pcOf(mob);
+      return { text:
+        `It splits ${n.devices.map(d => `${d.name} ${pcOf(d)}%`).join(', ')}. `
+        + (deskHigh
+          ? `A desktop lean like that usually means people are researching properly rather than acting on impulse — sitting at a computer, comparing options, often during working hours. That's typical for anything people think about before they commit, and it tends to mean better-quality enquiries even if there are fewer of them.`
+          : `A phone lean like that means most people find you while they're out or between things. Speed and a tappable phone number matter more than anything else in that situation, which is why the mobile version gets checked first after any change.`),
+        routed: false, flagged: false };
+    }
     return { text:
-      `${n.devices.map(d => `${d.name} ${Math.round(d.sessions / tot * 100)}%`).join(', ')}. ` +
-      (share >= 60
-        ? `With most people on a phone, the mobile version is effectively the website — it's where we check things first after any change.`
-        : `It's a genuine mix, so both versions have to hold up.`),
+      `${n.devices.map(d => `${d.name} ${pcOf(d)}%`).join(', ')}. `
+      + (mob && pcOf(mob) >= 60
+        ? `With most people on a phone, the mobile version effectively is your website — it's where we check things first after any change.`
+        : `It's a real mix, so both versions have to hold up — the desktop one for people researching, the mobile one for people who find you while they're out.`),
       routed: false, flagged: false };
   }
 
@@ -351,6 +404,33 @@ function answerFromData(question, rep) {
 const API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const MODEL = process.env.ASK_MODEL || 'claude-sonnet-5';
 const hasModel = () => !!API_KEY;
+const BUILD = '2026-10-01-c';          // so we can tell which version is deployed
+let lastModelError = null;             // why the last model attempt failed, if it did
+
+/** A live check: is the key there, does the model answer, and if not, what did it say? */
+async function health() {
+  const out = { build: BUILD, keyPresent: !!API_KEY,
+    keyLooksRight: /^sk-ant-/.test(API_KEY), keyLength: API_KEY.length,
+    model: MODEL, lastModelError, fetchAvailable: typeof fetch === 'function' };
+  if (!API_KEY) { out.result = 'No ANTHROPIC_API_KEY set on the server.'; return out; }
+  if (typeof fetch !== 'function') { out.result = 'This Node version has no fetch — needs Node 18 or newer.'; return out; }
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'x-api-key': API_KEY, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 16, messages:[{ role:'user', content:'Reply with OK.' }] })
+    });
+    out.status = r.status;
+    const body = await r.text();
+    if (!r.ok) { out.result = 'The API rejected the call.'; out.error = body.slice(0, 500); return out; }
+    out.result = 'Working.';
+    out.reply = (JSON.parse(body).content || []).map(b => b.text).join('').trim().slice(0, 60);
+  } catch (e) {
+    out.result = 'The call threw before it got a reply.';
+    out.error = String(e && e.message || e);
+  }
+  return out;
+}
 
 const SYSTEM = `You are "Ask JRNEE", answering questions a small business owner asks while reading
 the monthly website report JRNEE Technologies prepared for them. Joel and his team built and run
@@ -370,6 +450,13 @@ trend. Say that the team watches it weekly rather than waiting for the report, s
 caught early. Then the plan. The reader should finish calm and clear that someone is ahead of it.
 Never spin a decline into good news, and never pretend a number is something it isn't — the
 reassurance has to be true or it costs more than it gains.
+
+FOLLOW-UPS
+The conversation so far is in the messages above. If someone asks again, or pushes back with
+"yeah but why", they did not get what they needed the first time — never repeat an earlier answer.
+Go a layer deeper: explain the mechanism behind the number, what is typical and why, and what it
+does or doesn't mean for them. If there genuinely isn't another layer in the data, say that plainly
+and hand it to Joel rather than restating.
 
 BROAD QUESTIONS
 "How are things looking?", "are our numbers up?", "is this good?" — these are the most common
@@ -456,7 +543,10 @@ async function answerWithModel(question, rep, history) {
     headers: { 'x-api-key': API_KEY, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
     body: JSON.stringify({ model: MODEL, max_tokens: 500, system: SYSTEM, messages })
   });
-  if (!r.ok) throw new Error('model ' + r.status);
+  if (!r.ok) {
+    const detail = await r.text().catch(() => '');
+    throw new Error(`model returned ${r.status} ${detail.slice(0, 300)}`);
+  }
   const j = await r.json();
   const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
   if (!text) throw new Error('empty');
@@ -473,6 +563,21 @@ function withinBudget(clientId) {
   return list.length <= 60;
 }
 
+const norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const sentences = t => String(t || '').split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(Boolean);
+
+/** Strip anything already said in this thread. Returns null if what's left is mostly a repeat. */
+function freshen(text, history) {
+  const said = new Set();
+  (history || []).filter(h => h.answer).forEach(h => sentences(h.answer).forEach(x => said.add(norm(x))));
+  if (!said.size) return text;
+  const all = sentences(text);
+  const kept = all.filter(x => !said.has(norm(x)));
+  if (!kept.length) return null;
+  if (kept.length / all.length < 0.5) return null;     // mostly things they've already read
+  return kept.join(' ');
+}
+
 /** The one entry point the server uses. */
 async function answer(question, rep, history, clientId) {
   const k = classify(question);
@@ -482,10 +587,24 @@ async function answer(question, rep, history, clientId) {
   if (hasModel() && withinBudget(clientId)) {
     try {
       const text = await answerWithModel(question, rep, history);
+      lastModelError = null;
       return { text, routed:false, flagged: !!k.pointed, engine:'model' };
-    } catch (e) { /* fall through to the figures */ }
+    } catch (e) {
+      lastModelError = { at: new Date().toISOString(), message: String(e && e.message || e) };
+      console.error('[ask] model call failed, using the figures instead:', lastModelError.message);
+    }
   }
-  return { ...answerFromData(question, rep), engine:'rules' };
+
+  const a = answerFromData(question, rep);
+  if (a.routed) return { ...a, engine:'rules' };
+
+  const fresh = freshen(a.text, history);
+  if (!fresh) {
+    return { engine:'rules', routed:false, flagged:true, text:
+      `I'd only be repeating myself, and you deserve better than that — what's in these figures on that question, I've already given you. `
+      + `It's clearly worth a proper answer though, so I've flagged it for Joel. He has the background I don't and he'll come back to you on it.` };
+  }
+  return { ...a, text: fresh, engine:'rules' };
 }
 
 /* ---------------- suggested questions, per section ---------------- */
@@ -607,4 +726,4 @@ function listThreads() {
   return out.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 
-module.exports = { classify, answer, answerFromData, hasModel, suggestions, appendAsk, getThread, markSeen, listThreads };
+module.exports = { classify, answer, answerFromData, hasModel, health, suggestions, appendAsk, getThread, markSeen, listThreads };

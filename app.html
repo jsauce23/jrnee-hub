@@ -547,6 +547,26 @@ body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surf
 .sumcard .upd{margin-top:18px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;
   text-transform:uppercase;color:#6F88B4}
 
+
+/* ---------- lock the page to the screen width ---------- */
+html,body{max-width:100%;overflow-x:hidden;overscroll-behavior-x:none}
+*{min-width:0}
+img,svg,video,canvas{max-width:100%;height:auto}
+.wrap,main,#view,.card,.sec,.doc{max-width:100%}
+.qq,.aa,.plain,.xpb,.xpd,.lead2 p,.lead p,.mv span,.opp span,.st,.foc b,.foc span,.ritem span,.qrow span{
+  overflow-wrap:anywhere;word-break:break-word}
+.ui-url,.val,.mono,code{overflow-wrap:anywhere}
+/* anything genuinely wide scrolls inside its own box, never the page */
+.ktab,.tbl,table{display:block;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ktab thead,.ktab tbody,.ktab tr{display:table;width:100%;table-layout:fixed}
+.kpis,.hl,.nums,.dnums,.secs,.per,.chips,.hwins{max-width:100%}
+.askform{flex-wrap:wrap}
+.askform input{min-width:0;flex:1 1 160px}
+@media (max-width:620px){
+  .hero,.sumcard,.brandfoot,.cover{padding-left:18px;padding-right:18px}
+  .ktab{font-size:12.5px}
+}
+
 @media print{.rv2{opacity:1!important;transform:none!important}.sec .chart .dr{animation:none;stroke-dashoffset:0}}
 
 @media print{ .askwrap{display:none!important} }

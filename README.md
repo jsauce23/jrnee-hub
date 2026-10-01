@@ -98,6 +98,16 @@ Two things are never answered and always come to you instead:
 Pointed questions — results down over more than one period, frustration, talk of cancelling —
 are answered from the data *and* flagged, so you see them before the email arrives.
 
+### Checking the AI connection
+
+Signed in as admin, open `/api/ask/health` on the hub. It reports whether the key is present,
+which model is set, whether a live test call succeeds, and the exact error if it doesn't.
+It also shows a build marker, so you can confirm the deployed code is the current version.
+
+If answers look scripted, check here first — the model path falls back to the figures on any
+failure, which keeps the feature working but hides the cause. Failures are now also logged in
+Render's logs as `[ask] model call failed`.
+
 ### Turning on AI answers
 
 Add `ANTHROPIC_API_KEY` in Render -> Environment. That's the only required step. Optionally set
