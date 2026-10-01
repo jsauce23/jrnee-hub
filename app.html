@@ -568,6 +568,7 @@ body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surf
 <script>window.HUB = __HUB__;</script>
 <script>
 const $ = s => document.querySelector(s);
+let ASK_CTX = null;   // { report: '<id>' | 'live', client, days } — whichever view is on screen
 const view = $('#view');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => n == null ? '—' : Math.round(n).toLocaleString('en-US');
@@ -778,6 +779,7 @@ async function showReport(fresh){
   catch(e){ view.innerHTML = `<a class="back admin" href="#/clients">← All clients</a><div class="notice"><b>Couldn't load this report.</b> ${esc(e.message)}</div>`; return; }
 
   const c = r.client, n = r.days, ga = r.ga, gs = r.gsc, ld = r.leads, er = r.errors || {};
+  ASK_CTX = { report: 'live', client: state.id, days: n };
   const start = dayDate(n, 0), end = dayDate(n, n - 1);
 
   /* KPIs */
@@ -876,16 +878,17 @@ async function showReport(fresh){
     ${kpis}
     ${chart}
     <div class="two">
-      <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>Where visitors came from</h2></div>${sources}</section>
-      <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>What they used</h2><p>Share of visits by device</p></div>${devices}</section>
+      <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>Where visitors came from</h2></div>${sources}${askBlock('sources')}</section>
+      <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>What they used</h2><p>Share of visits by device</p></div>${devices}${askBlock('devices')}</section>
     </div>
-    <section class="sec card ${hp(gsState)}"><div class="sec-h"><h2>What people searched on Google</h2><p>Searches where this site showed up${gs ? ` · data to ${esc(gs.range.endDate)}` : ''}</p></div>${queries}</section>
-    <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>Most-visited pages</h2></div>${pages}</section>
-    <section class="sec card ${hp(ldState)}"><div class="sec-h"><h2>Leads from the website</h2><p>Every form submission, newest first</p></div>${leads}</section>
+    <section class="sec card ${hp(gsState)}"><div class="sec-h"><h2>What people searched on Google</h2><p>Searches where this site showed up${gs ? ` · data to ${esc(gs.range.endDate)}` : ''}</p></div>${queries}${askBlock('search')}</section>
+    <section class="sec card ${hp(gaState)}"><div class="sec-h"><h2>Most-visited pages</h2></div>${pages}${askBlock('pages')}</section>
+    <section class="sec card ${hp(ldState)}"><div class="sec-h"><h2>Leads from the website</h2><p>Every form submission, newest first</p></div>${leads}${askBlock('leads')}</section>
     <div class="foot"><span>Prepared by JRNEE Technologies LLC for ${esc(c.legal)}</span><span>Sources: Google Analytics · Google Search Console · Netlify</span></div>`;
 
   view.querySelectorAll('.pills button').forEach(b => b.onclick = () => { state.days = +b.dataset.d; store('hub-days', String(state.days)); showReport(); });
   const rb = $('#refreshRep'); if (rb) rb.onclick = () => showReport(true);
+  wireAsk();
 }
 
 
@@ -1232,7 +1235,7 @@ function docHtml(){
     return `<div class="xpd">${rows.map(x =>
       `${x.t?`<span class="t">${esc(x.t)}</span>`:''}<p>${esc(x.text)}</p>`).join('')}</div>`;
   };
-  const ask = key => (r.id && r.status) ? askBlock(key) : '';
+  const ask = key => askBlock(key);
   const xp = key => {
     const d = dataBits(key), gen = EXPLAIN[key];
     if (!d && !gen) return '';
@@ -1413,6 +1416,7 @@ function viewDoc(mode){
         <button class="tbtn" id="delBtn" type="button">Delete draft</button>
         <button class="tbtn" id="saveDraft" type="button">Save draft</button>
         <button class="tbtn pri" id="publish" type="button">Publish to client</button></div>`;
+  ASK_CTX = { report: REP.id, client: REP.clientId };
   view.innerHTML = `<a class="back" href="#/reports/${encodeURIComponent(REP.clientId)}">← Reports</a>${bar}${docHtml()}`;
   animateDoc();
 
@@ -1445,6 +1449,7 @@ async function openReport(cid, id){
     REP = await api(`/api/report/item?c=${encodeURIComponent(cid)}&id=${encodeURIComponent(id)}`);
     document.body.classList.remove('editing');
     if (IS_CLIENT){
+      ASK_CTX = { report: REP.id, client: REP.clientId };
       view.innerHTML = `<a class="back" href="#/reports">← All reports</a>
         <div id="reportBar" style="display:flex;justify-content:flex-end;margin-bottom:10px">
           <button class="tbtn" id="dlBtn" type="button">Download</button>
@@ -1466,6 +1471,7 @@ const ASK_ICON = '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3V
 const ASK_MARK = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M8 7h8v7a4 4 0 0 1-8 0"/><circle cx="8" cy="7" r="1.6" fill="#fff" stroke="none"/></svg>';
 
 function askBlock(section){
+  if (!ASK_CTX) return '';
   return `<div class="askwrap" data-ask="${section}">
     <button class="askbtn" type="button">${ASK_ICON}Have a question about this? Ask JRNEE</button>
   </div>`;
@@ -1486,8 +1492,9 @@ async function openAsk(wrap){
   const panel = wrap.querySelector('.askpanel');
   panel.querySelector('.close').onclick = () => { panel.remove(); wrap.querySelector('.askbtn').style.display = ''; };
 
-  const qs = new URLSearchParams({ report: REP.id, section });
-  if (!IS_CLIENT) qs.set('c', REP.clientId);
+  const qs = new URLSearchParams({ report: ASK_CTX.report, section });
+  if (ASK_CTX.days) qs.set('days', ASK_CTX.days);
+  if (!IS_CLIENT) qs.set('c', ASK_CTX.client);
   try {
     const { suggestions } = await api('/api/ask/suggestions?' + qs);
     panel.querySelector('.sugg').innerHTML = suggestions
@@ -1510,8 +1517,9 @@ async function sendAsk(panel, section, question){
   thread.insertAdjacentHTML('beforeend', `<div class="qq">${esc(question)}</div>
     <div class="aa pending"><span class="thinking"><i></i><i></i><i></i></span></div>`);
   thread.lastElementChild.scrollIntoView({ block:'nearest', behavior:'smooth' });
-  const body = { report: REP.id, section, question };
-  if (!IS_CLIENT) body.client = REP.clientId;
+  const body = { report: ASK_CTX.report, section, question };
+  if (ASK_CTX.days) body.days = ASK_CTX.days;
+  if (!IS_CLIENT) body.client = ASK_CTX.client;
   try {
     const r = await post('/api/ask', body);
     const el = thread.querySelector('.aa.pending');

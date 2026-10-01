@@ -78,11 +78,16 @@ Leave both empty to count every new contact.
 
 ## Ask JRNEE
 
-Under every section of a report the client sees **"Have a question about this? Ask JRNEE"**.
+It sits in two places: under every section of a monthly report, **and** under every section of
+their live dashboard. On the dashboard it answers from whatever period they're looking at
+(7, 28 or 90 days), using the same figures on screen.
+
+Under every section the client sees **"Have a question about this? Ask JRNEE"**.
 It opens in place, offers three questions written for that section, and they can type their own.
 
-Every question and answer is kept. **Questions** tab -> a row per client per report
-("Marco had 3 questions about the August report") -> open it for the full back-and-forth.
+Every question and answer is kept, whether it came from a report or the dashboard.
+**Questions** tab -> a row per client per report ("Marco had 3 questions about the August report",
+or "Dashboard - October 2026" for ones asked on the live dashboard) -> open it for the full back-and-forth.
 Unread ones carry a blue dot; flagged ones are tinted and listed first.
 
 Two things are never answered and always come to you instead:

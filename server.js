@@ -457,6 +457,64 @@ function leadsForPeriod(c, period) {
 }
 const hasLeadSource = c => usesGhl(c) || !!c.netlifySiteId;
 
+
+/* Turn the live dashboard figures into the shape Ask JRNEE expects, so the
+   chatbot answers the same way whether it's a saved report or today's numbers. */
+function liveToReport(c, live, days) {
+  const ga = live.ga, gs = live.gsc, ld = live.leads;
+  const period = {
+    id:'live', kind:'range', label:`The last ${days} days`,
+    span:`the last ${days} days`, days,
+    phrase:`over the last ${days} days`, prevPhrase:`in the ${days} days before`,
+    vs:`the ${days} days before`, nextLabel:'next'
+  };
+  const numbers = {
+    connected: { analytics: !!ga, search: !!gs, leads: !!ld },
+    notes: live.errors || {}
+  };
+  if (ga) {
+    numbers.visitors = { cur: Math.round(ga.totals.cur.activeUsers), prev: Math.round(ga.totals.prev.activeUsers) };
+    numbers.visits   = { cur: Math.round(ga.totals.cur.sessions),    prev: Math.round(ga.totals.prev.sessions) };
+    numbers.pageviews= { cur: Math.round(ga.totals.cur.screenPageViews), prev: Math.round(ga.totals.prev.screenPageViews) };
+    numbers.visitLen = { cur: Math.round(ga.totals.cur.averageSessionDuration), prev: Math.round(ga.totals.prev.averageSessionDuration) };
+    numbers.keyEvents= ga.keyEvents ? { cur: Math.round(ga.keyEvents.cur), prev: Math.round(ga.keyEvents.prev) } : null;
+    numbers.channels = ga.channels; numbers.devices = ga.devices; numbers.pages = ga.pages;
+    const today = new Date();
+    numbers.series = (ga.series.cur || []).map((v, i) => {
+      const d = new Date(today.getTime() - (ga.series.cur.length - i) * 864e5);
+      return { date: d.toISOString().slice(0,10).replace(/-/g,''), v };
+    });
+    numbers.seriesPrev = (ga.series.prev || []).map((v, i) => ({ date:String(i), v }));
+  }
+  if (gs) {
+    numbers.clicks      = { cur: Math.round(gs.totals.cur.clicks), prev: Math.round(gs.totals.prev.clicks) };
+    numbers.impressions = { cur: Math.round(gs.totals.cur.impressions), prev: Math.round(gs.totals.prev.impressions) };
+    numbers.position    = { cur: +(gs.totals.cur.position || 0).toFixed(1), prev: +(gs.totals.prev.position || 0).toFixed(1) };
+    numbers.queries     = (gs.queries || []).map(q => ({ q:q.query, clicks:q.clicks, impressions:q.impressions, ctr:q.ctr, position:q.position }));
+    numbers.queriesPrev = [];
+  }
+  if (ld) { numbers.leads = ld.count; numbers.leadItems = ld.items || ld.leads || []; }
+
+  const n = REPORTS.buildNarrative(numbers, period);   // same plans the monthly report would give
+  const month = new Date().toLocaleDateString('en-US', { month:'long', year:'numeric' });
+  return {
+    id: 'live-' + new Date().toISOString().slice(0,7),
+    clientId: c.id, status:'published', client: publicClient(c), period, numbers,
+    liveTitle: `Dashboard · ${month}`,
+    content: { headline:n.headline, summary:n.summary, groups:[], moved:n.moved, room:n.room,
+               next:n.suggested, highlights:n.highlights, keywords:n.keywords, explain:n.explain }
+  };
+}
+
+async function askTarget(cid, reportId, days) {
+  const c = CLIENTS.find(x => x.id === cid);
+  if (!c) return null;
+  if (reportId && reportId !== 'live') return REPORTS.getReport(cid, reportId);
+  const n = Math.max(1, Math.min(365, parseInt(days, 10) || 28));
+  const live = await cached(`r:${c.id}:${n}`, () => buildReport(c, n));   // same data the dashboard is showing
+  return liveToReport(c, live, n);
+}
+
 /* ---------------- report assembly + cache ---------------- */
 const publicClient = c => ({ id: c.id, name: c.name, legal: c.legal || c.name, domain: c.domain || '', initials: c.initials || c.name.slice(0, 2).toUpperCase(), status: c.status || '' });
 const gaId = c => String(c.ga4PropertyId || '').replace(/\D/g, '');
@@ -738,7 +796,7 @@ http.createServer(async (req, res) => {
       if (!cid) return json(res, 400, { error: 'Which client?' });
       if (!isAdmin && body.client && body.client !== ownId) return json(res, 403, { error: 'Not allowed.' });
 
-      const rep = REPORTS.getReport(cid, body.report);
+      const rep = await askTarget(cid, body.report, body.days);
       if (!rep) return json(res, 404, { error: 'That report no longer exists.' });
       if (!isAdmin && rep.status !== 'published') return json(res, 403, { error: 'Not allowed.' });
 
@@ -751,14 +809,14 @@ http.createServer(async (req, res) => {
         question, answer: a.text, routed: !!a.routed, flagged: !!a.flagged,
         reason: a.reason || null, engine: a.engine || 'rules',
         askedBy: isAdmin ? 'jrnee (preview)' : 'client', seen: isAdmin };
-      try { ASK.appendAsk(cid, rep.id, entry, rep.period && rep.period.label); }
+      try { ASK.appendAsk(cid, rep.id, entry, rep.liveTitle || (rep.period && rep.period.label)); }
       catch (e) { /* a failed transcript must never block the answer */ }
       return json(res, 200, { answer: a.text, routed: !!a.routed, flagged: !!a.flagged });
     }
 
     if (u.pathname === '/api/ask/suggestions') {
       const cid = isAdmin ? u.searchParams.get('c') : ownId;
-      const rep = REPORTS.getReport(cid, u.searchParams.get('report'));
+      const rep = await askTarget(cid, u.searchParams.get('report'), u.searchParams.get('days'));
       if (!rep) return json(res, 404, { error: 'Not found.' });
       if (!isAdmin && rep.status !== 'published') return json(res, 403, { error: 'Not allowed.' });
       return json(res, 200, { suggestions: ASK.suggestions(u.searchParams.get('section'), rep) });
