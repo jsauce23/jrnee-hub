@@ -761,7 +761,8 @@ http.createServer(async (req, res) => {
         return json(res, 200, {
           id: REPORTS.newId(), clientId: c.id, status: 'draft',
           client: publicClient(c), period, numbers,
-          content: { headline:n.headline, summary:n.summary, groups:[], moved:n.moved, room:n.room, next:n.suggested },
+          content: { headline:n.headline, summary:n.summary, groups:[], moved:n.moved, room:n.room,
+                     next:n.suggested, highlights:n.highlights, keywords:n.keywords },
           work: '', plans: '', suggested: n.suggested,
           createdAt: new Date().toISOString(), publishedAt: null
         });

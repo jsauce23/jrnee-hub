@@ -282,6 +282,55 @@ body.editing .editable{outline-color:color-mix(in srgb,var(--blue) 45%,transpare
 body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surface)}
 .saving{font-size:12.5px;color:var(--muted)}
 
+
+/* ---------- full report ---------- */
+.hl{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:14px}
+@media (max-width:700px){.hl{grid-template-columns:1fr}}
+.hl .h{border-radius:15px;padding:17px 18px;border:1px solid color-mix(in srgb,var(--hc) 26%,var(--line));
+  background:linear-gradient(135deg,color-mix(in srgb,var(--hc) 11%,var(--surface)),var(--surface))}
+.hl .h b{display:block;font-size:30px;font-weight:800;letter-spacing:-.05em;color:var(--hc);font-variant-numeric:tabular-nums}
+.hl .h span{display:block;font-size:13.5px;color:var(--slate);margin-top:3px;line-height:1.4}
+.chart{width:100%;height:auto;display:block;margin-top:6px}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .ax{font-family:var(--mono);font-size:9.5px;fill:var(--muted)}
+.chart .lc{fill:none;stroke:var(--blue);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.chart .lp{fill:none;stroke:var(--muted);stroke-width:1.6;stroke-dasharray:4 5;opacity:.65}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--slate);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:16px;height:3px;border-radius:2px;background:var(--blue);display:inline-block}
+.legend i.p{background:repeating-linear-gradient(90deg,var(--muted) 0 4px,transparent 4px 8px)}
+.bars{display:grid;gap:11px;margin-top:14px}
+.bar .bl{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}
+.bar .bl b{font-weight:700}.bar .bl span{color:var(--muted);font-variant-numeric:tabular-nums}
+.bar .tr{height:9px;border-radius:6px;background:var(--soft);margin-top:6px;overflow:hidden}
+.bar .tr i{display:block;height:100%;border-radius:6px;background:var(--bc,var(--blue))}
+.split{display:grid;gap:14px;margin-top:14px}
+@media (min-width:860px){.split{grid-template-columns:1fr 1fr}}
+.dev{display:flex;height:34px;border-radius:10px;overflow:hidden;margin-top:14px;border:1px solid var(--line)}
+.dev i{display:block;height:100%}
+.devk{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--slate)}
+.devk span{display:inline-flex;align-items:center;gap:7px}
+.devk em{width:10px;height:10px;border-radius:3px;display:inline-block;font-style:normal}
+.ktab{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:12px}
+.ktab th{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:500;text-align:left;padding:0 9px 9px}
+.ktab td{padding:10px 9px;border-top:1px solid var(--line);vertical-align:middle}
+.ktab th.r,.ktab td.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ktab td.q{font-weight:600}
+.mvd{font-size:12px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--good-bg);color:var(--good);white-space:nowrap}
+.mvd.new{background:var(--blue-soft);color:var(--blue)}
+.p1{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:var(--slate);
+  background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:7px 13px;margin-top:12px;margin-right:7px}
+.p1 b{color:var(--ink);font-weight:800}
+.fix{margin-top:9px;padding:11px 13px;border-radius:11px;background:color-mix(in srgb,var(--blue) 6%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--blue) 22%,var(--line));font-size:14px;color:var(--slate)}
+.fix b{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);margin-bottom:5px;font-weight:400}
+.lead2{border:1px solid var(--line);border-radius:13px;padding:13px 15px;background:var(--soft);margin-top:9px}
+.lead2 .lh{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.lead2 b{font-weight:800;letter-spacing:-.02em}
+.lead2 .lh span{font-size:12.5px;color:var(--muted)}
+.lead2 .lc{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-top:3px}
+.lead2 p{font-size:14px;color:var(--slate);margin-top:7px;white-space:pre-wrap}
+
 @media print{
   :root{--bg:#fff;--surface:#fff;--soft:#F7F9FD;--ink:#0A1224;--slate:#50607D;--muted:#7C8AA3;--line:#DCE3F0;
         --shadow:none;color-scheme:light}
@@ -767,112 +816,176 @@ function editReport(){
   if (REP.work) readout();
   $('#buildBtn').onclick = () => { REP.plans = $('#planBox').value;
     REP.content.next = REP.plans.split('\n').map(l=>l.replace(/^\s*[-*•\d.)]+\s*/,'').trim()).filter(Boolean);
-    viewDoc('edit'); };
+    viewDoc('draft'); };
 }
 
 /* ---- the report document ---- */
-function docHtml(editing){
+function niceMax(m){ const p=Math.pow(10,Math.floor(Math.log10(Math.max(m,1)))); return [1,2,2.5,5,10].map(s=>s*p).find(s=>s>=m)||10; }
+function lineChart(cur, prev){
+  const n = cur.length; if (!n) return '';
+  const W=760,H=230,pl=44,pr=14,pt=14,pb=26;
+  const vals = cur.map(d=>d.v), pvals = (prev||[]).map(d=>d.v);
+  const max = niceMax(Math.max(1,...vals,...pvals));
+  const x = i => pl + (W-pl-pr) * (n<=1?0:i/(n-1));
+  const y = v => pt + (H-pt-pb) * (1 - v/max);
+  const line = a => a.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join('');
+  let g='';
+  for (let k=0;k<=4;k++){ const v=max*k/4;
+    g+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${pl-8}" y="${y(v)+4}" text-anchor="end">${fmt(v)}</text>`; }
+  const lab = i => { const d=cur[i]?.date||''; return d.length===8 ? `${+d.slice(6,8)}/${+d.slice(4,6)}` : ''; };
+  [...new Set([0,Math.round((n-1)/3),Math.round(2*(n-1)/3),n-1])].forEach(i=>{
+    g+=`<text class="ax" x="${x(i)}" y="${H-7}" text-anchor="middle">${lab(i)}</text>`; });
+  const area = line(vals)+` L${x(n-1)} ${y(0)} L${x(0)} ${y(0)} Z`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Visitors per day">
+    <defs><linearGradient id="fg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" style="stop-color:var(--blue);stop-opacity:.20"/><stop offset="1" style="stop-color:var(--blue);stop-opacity:0"/>
+    </linearGradient></defs>${g}
+    <path d="${area}" fill="url(#fg)"/>${pvals.length?`<path class="lp" d="${line(pvals)}"/>`:''}<path class="lc" d="${line(vals)}"/></svg>`;
+}
+const CH_LABEL = { 'Organic Search':'Google and other search engines','Direct':'Came straight to the site',
+  'Organic Social':'Social media','Referral':'Links from other websites','Paid Search':'Paid search ads',
+  'Paid Social':'Paid social ads','Email':'Email','Organic Maps':'Google Maps','Unassigned':'Not identified',
+  'Cross-network':'Google ad network','Display':'Display ads','Organic Video':'Video' };
+const BARC = ['var(--blue)','#06B6D4','#7C5CFF','#10B981','#F59E0B','#FF4D8D'];
+
+function docHtml(){
   const r = REP, n = r.numbers, p = r.period, c = r.content;
-  const e = editing ? ' contenteditable="true" spellcheck="true"' : '';
-  const ed = editing ? 'editable' : '';
-  const d = (cur, prev, lower) => {
-    if (cur == null || prev == null || !prev) return '';
-    const v = Math.round((cur - prev) / prev * 100);
-    const good = lower ? v < 0 : v > 0;
-    if (v === 0) return '<span class="dl flat">Same</span>';
+  const lead = n.leads || n.keyEvents;
+  const kw = c.keywords;
+  const delta = (cur, prev, lower) => {
+    if (cur==null||prev==null||!prev) return '';
+    const v = Math.round((cur-prev)/prev*100);
+    if (v===0) return '<span class="dl flat">Same</span>';
+    const good = lower ? v<0 : v>0;
     return `<span class="dl ${good?'up':'down'}">${v>0?'▲':'▼'} ${Math.abs(v)}%</span>`;
   };
-  const nums = [];
-  const lead = n.leads || n.keyEvents;
-  if (lead) nums.push(`<div class="kpi card" style="--kc:var(--c-app,#10B981)"><small>${n.leads?'Leads':'Key actions'}</small>
-    <div class="v">${fmt(lead.cur)}${d(lead.cur,lead.prev)}</div><div class="n">${fmt(lead.prev)} ${esc(p.vs?('in '+p.vs):'before')}</div></div>`);
-  if (n.visitors) nums.push(`<div class="kpi card" style="--kc:#1257FF"><small>Visitors</small>
-    <div class="v">${fmt(n.visitors.cur)}${d(n.visitors.cur,n.visitors.prev)}</div><div class="n">${fmt(n.visitors.prev)} before</div></div>`);
-  if (n.clicks) nums.push(`<div class="kpi card" style="--kc:#06B6D4"><small>Clicks from Google</small>
-    <div class="v">${fmt(n.clicks.cur)}${d(n.clicks.cur,n.clicks.prev)}</div><div class="n">${fmt(n.clicks.prev)} before</div></div>`);
-  if (n.position) nums.push(`<div class="kpi card" style="--kc:#7C5CFF"><small>Avg. search position</small>
-    <div class="v">${n.position.cur}${d(n.position.cur,n.position.prev,true)}</div><div class="n">${n.position.prev} before · lower is better</div></div>`);
+  const sec = (title, body, extra='') => body ? `<section class="card dsec ${extra}"><h3>${title}</h3>${body}</section>` : '';
 
-  const groups = (c.groups||[]).map(g=>`<div class="grp" style="--c:${g.c}"><b class="${ed}"${e}>${esc(g.b)}</b>
-    <ul>${g.items.map(x=>`<li class="${ed}"${e}>${esc(x)}</li>`).join('')}</ul></div>`).join('');
+  /* numbers */
+  const nums = [];
+  if (lead) nums.push(`<div class="kpi card" style="--kc:#10B981"><small>${n.leads?'Enquiries':'Key actions'}</small>
+    <div class="v">${fmt(lead.cur)}${delta(lead.cur,lead.prev)}</div><div class="n">${fmt(lead.prev)} the period before</div></div>`);
+  if (n.visitors) nums.push(`<div class="kpi card" style="--kc:#1257FF"><small>Visitors</small>
+    <div class="v">${fmt(n.visitors.cur)}${delta(n.visitors.cur,n.visitors.prev)}</div><div class="n">${fmt(n.visitors.prev)} before</div></div>`);
+  if (n.clicks) nums.push(`<div class="kpi card" style="--kc:#06B6D4"><small>Clicks from Google</small>
+    <div class="v">${fmt(n.clicks.cur)}${delta(n.clicks.cur,n.clicks.prev)}</div><div class="n">${fmt(n.clicks.prev)} before</div></div>`);
+  if (n.position) nums.push(`<div class="kpi card" style="--kc:#7C5CFF"><small>Average position</small>
+    <div class="v">${n.position.cur}${delta(n.position.cur,n.position.prev,true)}</div><div class="n">lower is better · was ${n.position.prev}</div></div>`);
+
+  /* highlights */
+  const HC = ['#10B981','#1257FF','#7C5CFF'];
+  const hl = (c.highlights||[]).length ? `<div class="hl">${c.highlights.map((x,i)=>
+    `<div class="h" style="--hc:${HC[i%3]}"><b>${esc(x.big)}</b><span>${esc(x.label)}</span></div>`).join('')}</div>` : '';
+
+  /* traffic */
+  const chart = n.series && n.series.length ? `${lineChart(n.series, n.seriesPrev)}
+    <div class="legend"><span><i></i>This period</span><span><i class="p"></i>The period before</span></div>` : '';
+  const totCh = (n.channels||[]).reduce((a,x)=>a+x.sessions,0) || 1;
+  const sources = (n.channels||[]).length ? `<div class="bars">${n.channels.slice(0,6).map((ch,i)=>{
+      const pc = ch.sessions/totCh;
+      return `<div class="bar" style="--bc:${BARC[i%BARC.length]}"><div class="bl"><b>${esc(CH_LABEL[ch.name]||ch.name)}</b>
+        <span>${Math.round(pc*100)}% · ${fmt(ch.sessions)}</span></div><div class="tr"><i style="width:${Math.max(2,pc*100)}%"></i></div></div>`;
+    }).join('')}</div>` : '';
+  const totDv = (n.devices||[]).reduce((a,x)=>a+x.sessions,0) || 1;
+  const devices = (n.devices||[]).length ? `<div class="dev">${n.devices.map((d,i)=>
+      `<i style="width:${d.sessions/totDv*100}%;background:${BARC[i%BARC.length]}"></i>`).join('')}</div>
+    <div class="devk">${n.devices.map((d,i)=>`<span><em style="background:${BARC[i%BARC.length]}"></em>${esc(d.name)} · ${Math.round(d.sessions/totDv*100)}%</span>`).join('')}</div>` : '';
+
+  /* search */
+  let search = '';
+  if (kw){
+    const movedRow = r => `<tr><td class="q">${esc(r.q)}</td><td class="r">${fmt(r.clicks)}</td>
+      <td class="r">${fmt(r.impressions)}</td><td class="r">${r.position.toFixed(1)}</td>
+      <td class="r">${r.isNew?'<span class="mvd new">New</span>':r.move>=1?`<span class="mvd">▲ ${r.move}</span>`:'—'}</td></tr>`;
+    search = `
+      <span class="p1"><b>${kw.pageOne}</b> searches on page one${kw.pageOnePrev!=null?` · was ${kw.pageOnePrev}`:''}</span>
+      <span class="p1"><b>${kw.total}</b> searches you appear for</span>
+      ${kw.risers.length?`<h4 style="margin-top:20px;font-size:14.5px;font-weight:800;letter-spacing:-.02em">Searches that climbed</h4>
+        <table class="ktab"><thead><tr><th>Search</th><th class="r">Clicks</th><th class="r">Shown</th><th class="r">Position</th><th class="r">Moved</th></tr></thead>
+        <tbody>${kw.risers.map(movedRow).join('')}</tbody></table>`:''}
+      ${kw.fresh.length?`<h4 style="margin-top:22px;font-size:14.5px;font-weight:800;letter-spacing:-.02em">New searches you now show up for</h4>
+        <table class="ktab"><thead><tr><th>Search</th><th class="r">Clicks</th><th class="r">Shown</th><th class="r">Position</th><th class="r"></th></tr></thead>
+        <tbody>${kw.fresh.map(movedRow).join('')}</tbody></table>`:''}
+      ${kw.top.length?`<h4 style="margin-top:22px;font-size:14.5px;font-weight:800;letter-spacing:-.02em">Your biggest searches</h4>
+        <table class="ktab"><thead><tr><th>Search</th><th class="r">Clicks</th><th class="r">Shown</th><th class="r">Position</th><th class="r">Change</th></tr></thead>
+        <tbody>${kw.top.map(movedRow).join('')}</tbody></table>`:''}`;
+  }
+
+  /* pages */
+  const pages = (n.pages||[]).length ? `<table class="ktab"><thead><tr><th>Page</th><th class="r">Views</th><th class="r">Avg. time</th></tr></thead>
+    <tbody>${n.pages.map(pg=>`<tr><td class="q" style="font-family:var(--mono);font-size:12.5px;font-weight:400">${esc(pg.path)}</td>
+      <td class="r">${fmt(pg.views)}</td><td class="r">${Math.round(pg.avgTime)}s</td></tr>`).join('')}</tbody></table>` : '';
+
+  /* leads */
+  const items = (n.leadItems||[]);
+  const leads = lead ? `<span class="p1"><b>${fmt(lead.cur)}</b> enquiries this period</span>
+    ${lead.prev?`<span class="p1"><b>${fmt(lead.prev)}</b> the period before</span>`:''}
+    ${items.length?items.slice(0,10).map(x=>`<div class="lead2">
+      <div class="lh"><b>${esc(x.name||'No name given')}</b><span>${esc(fdt(x.when))}${x.form?` · ${esc(x.form)}`:''}</span></div>
+      <div class="lc">${x.phone?`<a href="tel:${esc(x.phone)}">${esc(x.phone)}</a>`:''}${x.email?`<a href="mailto:${esc(x.email)}">${esc(x.email)}</a>`:''}</div>
+      ${x.message?`<p>${esc(x.message)}</p>`:''}</div>`).join(''):''}` : '';
+
+  /* written sections */
+  const groups = (c.groups||[]).map(g=>`<div class="grp" style="--c:${g.c}"><b>${esc(g.b)}</b>
+    <ul>${g.items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`).join('');
   const moved = (c.moved||[]).map((m,i)=>`<div class="mv" style="--m:${m.down?'#C2410C':['var(--good)','#1257FF','#7C5CFF'][i%3]}">
-    <div class="ic">${RICON[m.icon]||RICON.up}</div><div><b class="${ed}"${e}>${esc(m.title)}</b><span class="${ed}"${e}>${esc(m.body)}</span></div></div>`).join('');
+    <div class="ic">${RICON[m.icon]||RICON.up}</div><div><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div></div>`).join('');
   const room = (c.room||[]).map((x,i)=>`<div class="opp"><span class="n">${String(i+1).padStart(2,'0')}</span>
-    <div><b class="${ed}"${e}>${esc(x.title)}</b><span class="${ed}"${e}>${esc(x.body)}</span></div></div>`).join('');
-  const next = (c.next||[]).map(x=>`<li class="${ed}"${e}>${esc(x)}</li>`).join('');
+    <div><b>${esc(x.title)}</b><span>${esc(x.body)}</span>
+    ${x.fix?`<div class="fix"><b>What we'll do</b>${esc(x.fix)}</div>`:''}</div></div>`).join('');
+  const next = (c.next||[]).map(x=>`<li>${esc(x)}</li>`).join('');
 
   return `<div class="doc">
     <section class="card cover">
       <div class="eyebrow">${p.kind==='month'?'Monthly report':'Report'} · ${esc(p.label)} <span style="color:var(--muted)">· ${esc(p.span)}</span></div>
-      <h1 class="${ed}"${e}>${esc(c.headline)}</h1>
+      <h1>${esc(c.headline)}</h1>
       <div class="who"><span class="tile">${esc(r.client.initials)}</span>
         <div><b>${esc(r.client.name)}</b><span>${esc(r.client.domain)}</span></div></div>
-      <p class="dlede ${ed}"${e}>${esc(c.summary)}</p>
+      <p class="dlede">${esc(c.summary)}</p>
+      ${hl}
     </section>
-    <section class="card dsec"><h3>${p.kind==='month'?'The month':'The period'} in numbers</h3>
+    <section class="card dsec"><h3>${p.kind==='month'?'The month':'The period'} at a glance</h3>
       <div class="kpis" style="margin-top:14px">${nums.join('')}</div></section>
-    ${groups?`<section class="card dsec"><h3>What we did</h3>${groups}</section>`:''}
-    ${moved?`<section class="card dsec"><h3>What moved</h3>${moved}</section>`:''}
-    ${room?`<section class="card dsec room"><h3>Where we see room</h3>${room}</section>`:''}
+    ${sec('Visitors, day by day', chart)}
+    ${(sources||devices) ? `<div class="split">
+      ${sources?`<section class="card dsec"><h3>Where visitors came from</h3>${sources}</section>`:''}
+      ${devices?`<section class="card dsec"><h3>What they were using</h3>${devices}</section>`:''}</div>` : ''}
+    ${sec('How you show up on Google', search)}
+    ${sec('Most-visited pages', pages)}
+    ${sec('Enquiries', leads)}
+    ${sec('What we did', groups)}
+    ${sec('What moved', moved)}
+    ${sec('Where we see room, and what we\'ll do', room, 'room')}
     ${next?`<section class="card dsec dnext"><h3>What we're doing ${esc(p.nextLabel)}</h3><ol>${next}</ol></section>`:''}
     <div class="card dfoot"><span>Prepared by JRNEE Technologies LLC for ${esc(r.client.legal||r.client.name)}</span>
-      <span>Google Analytics · Search Console · Netlify</span></div>
+      <span>Google Analytics · Search Console${n.connected.leads?' · leads':''}</span></div>
   </div>`;
 }
 
-function harvest(){
-  // pull edited text back out of the document
-  const q = s => [...view.querySelectorAll(s)];
-  const c = REP.content;
-  const h1 = view.querySelector('.cover h1'); if (h1) c.headline = h1.innerText.trim();
-  const ld = view.querySelector('.dlede'); if (ld) c.summary = ld.innerText.trim();
-  q('.grp').forEach((g,i)=>{ if(!c.groups[i]) return;
-    c.groups[i].b = g.querySelector('b').innerText.trim();
-    c.groups[i].items = [...g.querySelectorAll('li')].map(li=>li.innerText.trim()).filter(Boolean); });
-  q('.mv').forEach((m,i)=>{ if(!c.moved[i]) return;
-    c.moved[i].title = m.querySelector('b').innerText.trim();
-    c.moved[i].body  = m.querySelector('span').innerText.trim(); });
-  q('.opp').forEach((o,i)=>{ if(!c.room[i]) return;
-    c.room[i].title = o.querySelector('b').innerText.trim();
-    c.room[i].body  = o.querySelector('span').innerText.trim(); });
-  const ol = view.querySelector('.dnext ol');
-  if (ol) c.next = [...ol.querySelectorAll('li')].map(li=>li.innerText.trim()).filter(Boolean);
-}
-
 function viewDoc(mode){
-  // mode: 'edit' · 'preview' · 'published'
-  const editing = mode === 'edit';
-  document.body.classList.toggle('editing', editing);
-  let bar = '';
-  if (editing) bar = `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <button class="tbtn" id="backEdit" type="button">← Change the text</button>
-      <span class="saving" id="savedAt"></span><div style="flex:1"></div>
-      <button class="tbtn" id="previewBtn" type="button">Preview</button>
-      <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
-      <button class="tbtn" id="saveDraft" type="button">Save draft</button>
-      <button class="tbtn pri" id="publish" type="button">Publish to client</button></div>`;
-  if (mode === 'preview') bar = `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <button class="tbtn" id="backToEdit" type="button">← Back to editing</button>
-      <span class="saving">Exactly what the client will see</span><div style="flex:1"></div>
-      <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
-      <button class="tbtn pri" id="publish" type="button">Publish to client</button></div>`;
-  if (mode === 'published') bar = `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <span class="conn on">Published</span><div style="flex:1"></div>
-      <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
-      <button class="tbtn" id="unpub" type="button">Move back to draft</button></div>`;
+  // mode: 'draft' · 'published'
+  document.body.classList.remove('editing');
+  const bar = mode === 'published'
+    ? `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <span class="conn on">Published</span><span class="saving">Your client can see this</span><div style="flex:1"></div>
+        <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
+        <button class="tbtn" id="unpub" type="button">Move back to draft</button></div>`
+    : `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <button class="tbtn" id="backEdit" type="button">← Change what you pasted</button>
+        <span class="saving" id="savedAt">Draft · only you can see this</span><div style="flex:1"></div>
+        <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
+        <button class="tbtn" id="saveDraft" type="button">Save draft</button>
+        <button class="tbtn pri" id="publish" type="button">Publish to client</button></div>`;
+  view.innerHTML = `<a class="back" href="#/reports/${encodeURIComponent(REP.clientId)}">← Reports</a>${bar}${docHtml()}`;
 
-  view.innerHTML = `<a class="back" href="#/reports/${encodeURIComponent(REP.clientId)}">← Reports</a>${bar}${docHtml(editing)}`;
-
-  const dl = $('#dlBtn'); if (dl) dl.onclick = () => { if (editing) harvest(); print(); };
-  const pv = $('#previewBtn'); if (pv) pv.onclick = () => { harvest(); viewDoc('preview'); };
-  const be = $('#backToEdit'); if (be) be.onclick = () => viewDoc('edit');
-  const bk = $('#backEdit'); if (bk) bk.onclick = () => { harvest(); editReport(); };
-  const sd = $('#saveDraft'); if (sd) sd.onclick = async () => { harvest(); REP.status='draft';
-    await post('/api/report/save', { report: REP }); $('#savedAt').textContent = 'Saved'; };
-  const pb = $('#publish'); if (pb) pb.onclick = async () => { if (editing) harvest();
-    await post('/api/report/publish', { report: REP });
+  const g = id => document.getElementById(id);
+  if (g('dlBtn')) g('dlBtn').onclick = () => print();
+  if (g('backEdit')) g('backEdit').onclick = () => editReport();
+  if (g('saveDraft')) g('saveDraft').onclick = async () => { REP.status='draft';
+    await post('/api/report/save', { report: REP }); g('savedAt').textContent = 'Saved'; };
+  if (g('publish')) g('publish').onclick = async () => { await post('/api/report/publish', { report: REP });
     location.hash = '#/reports/' + encodeURIComponent(REP.clientId); };
-  const up = $('#unpub'); if (up) up.onclick = async () => {
+  if (g('unpub')) g('unpub').onclick = async () => {
     await post('/api/report/unpublish', { client:REP.clientId, id:REP.id }); openReport(REP.clientId, REP.id); };
 }
 
@@ -889,7 +1002,7 @@ async function openReport(cid, id){
       return;
     }
     $('#presentBtn').hidden = false;
-    viewDoc(REP.status === 'published' ? 'published' : 'edit');
+    viewDoc(REP.status === 'published' ? 'published' : 'draft');
   } catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't open that report.</b> ${esc(e.message)}</div>`; }
 }
 

@@ -79,13 +79,16 @@ async function gatherNumbers(client, period, io) {
         metrics:[{name:'activeUsers'}], limit:400, orderBys:[{dimension:{dimensionName:'date'}}] });
       return (j.rows || []).map(r => ({ date:r.dimensionValues[0].value, v:Number(r.metricValues[0].value) }));
     };
-    const [tc, tp, sc, ch, pg] = await Promise.all([
-      totals(period.start, period.end), totals(period.prevStart, period.prevEnd), series(period.start, period.end),
+    const [tc, tp, sc, sp, ch, pg, dv] = await Promise.all([
+      totals(period.start, period.end), totals(period.prevStart, period.prevEnd),
+      series(period.start, period.end), series(period.prevStart, period.prevEnd),
       io.ga({ dateRanges:[{startDate:period.start,endDate:period.end}], dimensions:[{name:'sessionDefaultChannelGroup'}],
         metrics:[{name:'sessions'}], orderBys:[{metric:{metricName:'sessions'},desc:true}], limit:8 }),
       io.ga({ dateRanges:[{startDate:period.start,endDate:period.end}], dimensions:[{name:'pagePath'}],
         metrics:[{name:'screenPageViews'},{name:'activeUsers'},{name:'userEngagementDuration'}],
-        orderBys:[{metric:{metricName:'screenPageViews'},desc:true}], limit:8 })
+        orderBys:[{metric:{metricName:'screenPageViews'},desc:true}], limit:8 }),
+      io.ga({ dateRanges:[{startDate:period.start,endDate:period.end}], dimensions:[{name:'deviceCategory'}],
+        metrics:[{name:'sessions'}], orderBys:[{metric:{metricName:'sessions'},desc:true}] })
     ]);
     let key = null, keyPrev = null;
     try {
@@ -101,6 +104,8 @@ async function gatherNumbers(client, period, io) {
     out.visitLen = { cur:Math.round(tc.averageSessionDuration), prev:Math.round(tp.averageSessionDuration) };
     out.keyEvents= key === null ? null : { cur:key, prev:keyPrev };
     out.series   = sc;
+    out.seriesPrev = sp;
+    out.devices  = (dv.rows||[]).map(r=>({ name:r.dimensionValues[0].value, sessions:Number(r.metricValues[0].value) }));
     out.channels = (ch.rows||[]).map(r=>({ name:r.dimensionValues[0].value, sessions:Number(r.metricValues[0].value) }));
     out.pages    = (pg.rows||[]).map(r=>{ const u=Number(r.metricValues[1].value), e=Number(r.metricValues[2].value);
       return { path:r.dimensionValues[0].value, views:Number(r.metricValues[0].value), avgTime:u?e/u:0 }; });
@@ -112,7 +117,7 @@ async function gatherNumbers(client, period, io) {
     const q = (s, e, dims, n=25) => io.gsc({ startDate:s, endDate:e, dimensions:dims, rowLimit:n });
     const [tc, tp, qc, qp] = await Promise.all([
       q(period.start, end, [], 1), q(period.prevStart, period.prevEnd, [], 1),
-      q(period.start, end, ['query']), q(period.prevStart, period.prevEnd, ['query'])
+      q(period.start, end, ['query'], 60), q(period.prevStart, period.prevEnd, ['query'], 60)
     ]);
     const tot = j => { const x = j.rows?.[0] || {}; return { clicks:x.clicks||0, impressions:x.impressions||0, ctr:x.ctr||0, position:x.position||0 }; };
     out.connected.search = true;
@@ -162,8 +167,30 @@ function groupWork(text) {
 const pct = (c, p) => (p ? Math.round((c - p) / p * 100) : null);
 const mmss = s => s >= 60 ? `${Math.floor(s/60)}m ${String(Math.round(s%60)).padStart(2,'0')}s` : `${Math.round(s)}s`;
 
+function analyseKeywords(n) {
+  if (!n.queries) return null;
+  const prevBy = Object.fromEntries((n.queriesPrev || []).map(q => [q.q, q]));
+  const rows = n.queries.map(q => {
+    const b = prevBy[q.q];
+    return { ...q, before: b ? b.position : null, move: b ? +(b.position - q.position).toFixed(1) : null, isNew: !b };
+  });
+  return {
+    top: rows.slice().sort((a,b)=> b.clicks - a.clicks || a.position - b.position).slice(0, 12),
+    risers: rows.filter(r => r.move !== null && r.move >= 1 && r.impressions >= 20)
+               .sort((a,b)=> b.move - a.move).slice(0, 6),
+    fresh: rows.filter(r => r.isNew && r.impressions >= 20)
+               .sort((a,b)=> b.impressions - a.impressions).slice(0, 6),
+    pageOne: rows.filter(r => r.position <= 10).length,
+    pageOnePrev: (n.queriesPrev || []).filter(r => r.position <= 10).length,
+    total: rows.length,
+    totalPrev: (n.queriesPrev || []).length
+  };
+}
+
 function buildNarrative(n, period) {
   const moved = [], room = [], suggested = [];
+  const kw = analyseKeywords(n);
+  const highlights = [];
   const lead = n.leads || n.keyEvents;
   const leadWord = n.leads ? 'got in touch through the website' : 'completed an action on the site';
 
@@ -185,6 +212,21 @@ function buildNarrative(n, period) {
   if (n.visitors) bits.push(`${n.visitors.cur.toLocaleString()} people visited`);
   if (n.clicks) bits.push(`${n.clicks.cur.toLocaleString()} of them arrived from a Google search`);
   summary = bits.join('. ') + '.';
+
+  // three quick wins at the top, each one true or it doesn't appear
+  const hp = (c,p) => (p ? Math.round((c-p)/p*100) : null);
+  if (lead && lead.prev && lead.cur > lead.prev)
+    highlights.push({ icon:'up', big:`+${hp(lead.cur,lead.prev)}%`, label:'more enquiries than last period' });
+  if (n.visitors && n.visitors.prev && n.visitors.cur > n.visitors.prev)
+    highlights.push({ icon:'up', big:`+${hp(n.visitors.cur,n.visitors.prev)}%`, label:'more people visiting the site' });
+  if (kw && kw.pageOne > kw.pageOnePrev)
+    highlights.push({ icon:'search', big:`${kw.pageOne}`, label:`searches on page one, up from ${kw.pageOnePrev}` });
+  if (kw && kw.fresh.length)
+    highlights.push({ icon:'search', big:`${kw.fresh.length}`, label:'searches you now show up for that you didn\'t before' });
+  if (n.clicks && n.clicks.prev && n.clicks.cur > n.clicks.prev)
+    highlights.push({ icon:'up', big:`+${hp(n.clicks.cur,n.clicks.prev)}%`, label:'more clicks from Google' });
+  if (n.visitLen && n.visitLen.prev && n.visitLen.cur > n.visitLen.prev)
+    highlights.push({ icon:'up', big:mmss(n.visitLen.cur), label:`average visit, up from ${mmss(n.visitLen.prev)}` });
 
   // what moved — only things the data actually shows
   if (n.queries && n.queriesPrev) {
@@ -223,14 +265,16 @@ function buildNarrative(n, period) {
       .sort((a, b) => b.impressions - a.impressions)[0];
     if (pageTwo) {
       room.push({ title:`“${pageTwo.q}” is stuck on page two`,
-        body:`You show up at position ${pageTwo.position.toFixed(1)} and were seen ${Math.round(pageTwo.impressions).toLocaleString()} times, but almost nobody scrolls that far. Getting this onto page one is the clearest opportunity here.` });
+        body:`You show up at position ${pageTwo.position.toFixed(1)} and were seen ${Math.round(pageTwo.impressions).toLocaleString()} times, but almost nobody scrolls past the first page.`,
+        fix:`We'll build a page written specifically around this search and link to it from the pages Google already trusts.` });
       suggested.push(`Build out a page targeting “${pageTwo.q}”`);
     }
     const lowCtr = n.queries.filter(q => q.position <= 10 && q.impressions >= 200 && q.ctr < 0.02)
       .sort((a, b) => b.impressions - a.impressions)[0];
     if (lowCtr) {
       room.push({ title:`People see “${lowCtr.q}” but don't click`,
-        body:`You're at position ${lowCtr.position.toFixed(1)} and were shown ${Math.round(lowCtr.impressions).toLocaleString()} times, yet almost nobody clicked. Usually the page title is the thing to change.` });
+        body:`You're at position ${lowCtr.position.toFixed(1)} and were shown ${Math.round(lowCtr.impressions).toLocaleString()} times, yet almost nobody clicked.`,
+        fix:`We'll rewrite the title and description for that page so it answers the search more directly.` });
       suggested.push(`Rewrite the page title and description for “${lowCtr.q}”`);
     }
   }
@@ -238,14 +282,16 @@ function buildNarrative(n, period) {
     const skim = n.pages.filter(p => p.views >= 50 && p.avgTime < 20)
       .sort((a, b) => b.views - a.views)[0];
     if (skim) room.push({ title:`${skim.path} gets traffic but people leave quickly`,
-      body:`${Math.round(skim.views).toLocaleString()} views, with an average of ${mmss(skim.avgTime)} on the page. Worth a look at what it's asking people to do.` });
+      body:`${Math.round(skim.views).toLocaleString()} views, with an average of ${mmss(skim.avgTime)} on the page.`,
+      fix:`We'll look at what that page asks people to do and make the next step obvious.` });
   }
   if (!n.connected.search) room.push({ title:'Search Console isn\'t connected yet',
-    body:'Connecting it would show exactly what people search before they land on the site.' });
+    body:'Without it we can\'t see which searches bring people to the site.',
+    fix:'We\'ll connect it so next period\'s report includes the full search breakdown.' });
 
   if (!suggested.length) suggested.push('Keep publishing and building out the pages that are ranking');
 
-  return { headline, summary, moved, room, suggested };
+  return { headline, summary, moved, room, suggested, highlights: highlights.slice(0, 3), keywords: kw };
 }
 
 /* ---------------- storage ---------------- */
@@ -287,5 +333,5 @@ function deleteReport(clientId, id) {
 }
 const newId = () => new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,7);
 
-module.exports = { resolvePeriod, gatherNumbers, groupWork, buildNarrative,
+module.exports = { resolvePeriod, gatherNumbers, groupWork, buildNarrative, analyseKeywords,
   listReports, getReport, saveReport, deleteReport, newId, DATA_DIR, pct, mmss };
