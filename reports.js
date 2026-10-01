@@ -234,7 +234,8 @@ function buildNarrative(n, period) {
   if (lead) bits.push(`${lead.cur} people ${leadWord} ${period.phrase}` + (lead.prev ? `, ${lp >= 0 ? 'up' : 'down'} from ${lead.prev} ${period.prevPhrase}` : ''));
   if (n.visitors) bits.push(`${n.visitors.cur.toLocaleString()} people visited`);
   if (n.clicks) bits.push(`${n.clicks.cur.toLocaleString()} of them arrived from a Google search`);
-  summary = bits.join('. ') + '.';
+  summary = bits.length ? bits.join('. ') + '.'
+    : `We don't have data flowing in for this period yet — the sections below explain what's still to connect.`;
 
   // three quick wins at the top, each one true or it doesn't appear
   const hp = (c,p) => (p ? Math.round((c-p)/p*100) : null);

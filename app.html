@@ -810,7 +810,7 @@ const post = async (p, body) => {
   if (!r.ok) throw new Error(j.error || 'Request failed');
   return j;
 };
-const fdt = iso => { const d = new Date(iso); return d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}); };
+const fdt = iso => new Date(iso).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
 
 /* ---- list of reports (admin: all clients · client: their own) ---- */
 async function showReports(clientId){
@@ -874,7 +874,7 @@ function newReport(cid){
     if (!a || !b){ el.textContent = 'Pick both dates to continue.'; return false; }
     const from = a < b ? a : b, to = a < b ? b : a;
     const days = Math.round((new Date(to) - new Date(from)) / 864e5) + 1;
-    const nice = s => new Date(s + 'T00:00:00Z').toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
+    const nice = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
     el.textContent = `Covering ${nice(from)} to ${nice(to)} — ${days} day${days===1?'':'s'}, compared against the ${days} days before.`;
     return true;
   };
@@ -902,6 +902,11 @@ function newReport(cid){
   };
 }
 
+const SECTIONS = [
+  ['highlights','Highlights'], ['chart','Visitors chart'], ['sources','Where they came from'],
+  ['devices','Devices'], ['search','Google searches'], ['pages','Top pages'], ['leads','Enquiries'],
+  ['work','What we did'], ['moved','What moved'], ['room','Where we see room'], ['next',"What's next"]
+];
 function editReport(){
   const p = REP.period;
   REP.show = REP.show || Object.fromEntries(SECTIONS.map(([k])=>[k,true]));
