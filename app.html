@@ -284,6 +284,12 @@ body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surf
 
 
 /* ---------- full report ---------- */
+.secs{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.secs label{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--slate);
+  border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:8px 13px;cursor:pointer}
+.secs label:has(input:checked){background:var(--blue-soft);border-color:color-mix(in srgb,var(--blue) 35%,var(--line));color:var(--blue)}
+.secs input{accent-color:var(--blue);width:15px;height:15px}
+.plain{font-size:13.5px;color:var(--muted);margin-top:7px;max-width:62ch;line-height:1.5}
 .hl{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:14px}
 @media (max-width:700px){.hl{grid-template-columns:1fr}}
 .hl .h{border-radius:15px;padding:17px 18px;border:1px solid color-mix(in srgb,var(--hc) 26%,var(--line));
@@ -321,6 +327,11 @@ body.editing .editable:focus{outline:2px solid var(--blue);background:var(--surf
 .p1{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:var(--slate);
   background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:7px 13px;margin-top:12px;margin-right:7px}
 .p1 b{color:var(--ink);font-weight:800}
+.why{margin-top:9px;padding:11px 13px;border-radius:11px;font-size:14px;color:var(--slate);
+  background:color-mix(in srgb,var(--m,var(--blue)) 7%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--m,var(--blue)) 22%,var(--line))}
+.why b{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--m,var(--blue));margin-bottom:5px;font-weight:400}
 .fix{margin-top:9px;padding:11px 13px;border-radius:11px;background:color-mix(in srgb,var(--blue) 6%,var(--surface));
   border:1px solid color-mix(in srgb,var(--blue) 22%,var(--line));font-size:14px;color:var(--slate)}
 .fix b{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);margin-bottom:5px;font-weight:400}
@@ -784,8 +795,14 @@ function newReport(cid){
   };
 }
 
+const SECTIONS = [
+  ['highlights','Highlights'], ['chart','Visitors chart'], ['sources','Where they came from'],
+  ['devices','Devices'], ['search','Google searches'], ['pages','Top pages'], ['leads','Enquiries'],
+  ['work','What we did'], ['moved','What moved'], ['room','Where we see room'], ['next',"What's next"]
+];
 function editReport(){
   const p = REP.period;
+  REP.show = REP.show || Object.fromEntries(SECTIONS.map(([k])=>[k,true]));
   view.innerHTML = `
     <a class="back" href="#/reports/${encodeURIComponent(REP.clientId)}">← Reports</a>
     <div class="list-h"><div><div class="eyebrow">${esc(REP.client.name)} · ${esc(p.label)}</div><h1>What did we do?</h1></div></div>
@@ -800,9 +817,14 @@ function editReport(){
       <p class="muted" style="font-size:13.5px">Leave it as it is to use what the hub suggests, drawn from what it found in the data.</p>
       <textarea class="paste short" id="planBox" spellcheck="false">${esc((REP.plans||REP.suggested.join('\n')))}</textarea>
     </section>
+    <section class="sec card">
+      <div class="sec-h"><h2>What to include</h2><p>Untick anything that isn't worth showing this time</p></div>
+      <div class="secs">${SECTIONS.map(([k,lbl])=>`<label><input type="checkbox" data-sec="${k}" ${REP.show[k]?'checked':''}>${lbl}</label>`).join('')}</div>
+    </section>
     <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
       <button class="tbtn pri" id="buildBtn" type="button">Build the report →</button>
     </div>`;
+  view.querySelectorAll('[data-sec]').forEach(cb => cb.onchange = () => REP.show[cb.dataset.sec] = cb.checked);
   const wb = $('#workBox');
   const readout = async () => {
     REP.work = wb.value;
@@ -859,7 +881,10 @@ function docHtml(){
     const good = lower ? v<0 : v>0;
     return `<span class="dl ${good?'up':'down'}">${v>0?'▲':'▼'} ${Math.abs(v)}%</span>`;
   };
-  const sec = (title, body, extra='') => body ? `<section class="card dsec ${extra}"><h3>${title}</h3>${body}</section>` : '';
+  const show = r.show || {};
+  const on = k => show[k] !== false;
+  const sec = (key, title, body, plain='', extra='') =>
+    (body && on(key)) ? `<section class="card dsec ${extra}"><h3>${title}</h3>${plain?`<p class="plain">${plain}</p>`:''}${body}</section>` : '';
 
   /* numbers */
   const nums = [];
@@ -929,7 +954,11 @@ function docHtml(){
   const groups = (c.groups||[]).map(g=>`<div class="grp" style="--c:${g.c}"><b>${esc(g.b)}</b>
     <ul>${g.items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`).join('');
   const moved = (c.moved||[]).map((m,i)=>`<div class="mv" style="--m:${m.down?'#C2410C':['var(--good)','#1257FF','#7C5CFF'][i%3]}">
-    <div class="ic">${RICON[m.icon]||RICON.up}</div><div><b>${esc(m.title)}</b><span>${esc(m.body)}</span></div></div>`).join('');
+    <div class="ic">${RICON[m.icon]||RICON.up}</div>
+    <div><b>${esc(m.title)}</b><span>${esc(m.body)}</span>
+      ${m.why?`<div class="why"><b>Why</b>${esc(m.why)}</div>`:''}
+      ${m.fix?`<div class="fix"><b>What we'll do</b>${esc(m.fix)}</div>`:''}
+    </div></div>`).join('');
   const room = (c.room||[]).map((x,i)=>`<div class="opp"><span class="n">${String(i+1).padStart(2,'0')}</span>
     <div><b>${esc(x.title)}</b><span>${esc(x.body)}</span>
     ${x.fix?`<div class="fix"><b>What we'll do</b>${esc(x.fix)}</div>`:''}</div></div>`).join('');
@@ -942,21 +971,28 @@ function docHtml(){
       <div class="who"><span class="tile">${esc(r.client.initials)}</span>
         <div><b>${esc(r.client.name)}</b><span>${esc(r.client.domain)}</span></div></div>
       <p class="dlede">${esc(c.summary)}</p>
-      ${hl}
+      ${on('highlights') ? hl : ''}
     </section>
     <section class="card dsec"><h3>${p.kind==='month'?'The month':'The period'} at a glance</h3>
       <div class="kpis" style="margin-top:14px">${nums.join('')}</div></section>
-    ${sec('Visitors, day by day', chart)}
-    ${(sources||devices) ? `<div class="split">
-      ${sources?`<section class="card dsec"><h3>Where visitors came from</h3>${sources}</section>`:''}
-      ${devices?`<section class="card dsec"><h3>What they were using</h3>${devices}</section>`:''}</div>` : ''}
-    ${sec('How you show up on Google', search)}
-    ${sec('Most-visited pages', pages)}
-    ${sec('Enquiries', leads)}
-    ${sec('What we did', groups)}
-    ${sec('What moved', moved)}
-    ${sec('Where we see room, and what we\'ll do', room, 'room')}
-    ${next?`<section class="card dsec dnext"><h3>What we're doing ${esc(p.nextLabel)}</h3><ol>${next}</ol></section>`:''}
+    ${sec('chart','Visitors, day by day', chart,
+      'Each point is one day. The dashed line behind it is the same stretch before, so you can see the shape of it rather than just a total.')}
+    ${((sources&&on('sources'))||(devices&&on('devices'))) ? `<div class="split">
+      ${sources&&on('sources')?`<section class="card dsec"><h3>Where visitors came from</h3>
+        <p class="plain">How people arrived. Search means they found you on Google; direct means they typed the address or already knew you.</p>${sources}</section>`:''}
+      ${devices&&on('devices')?`<section class="card dsec"><h3>What they were using</h3>
+        <p class="plain">Phone, computer or tablet. If most are on a phone, that's the version that matters most.</p>${devices}</section>`:''}</div>` : ''}
+    ${sec('search','How you show up on Google', search,
+      'Position 1 is the top result. Anything above 10 is page one — below that, very few people ever look.')}
+    ${sec('pages','Most-visited pages', pages,
+      'Where people actually spent their time, and how long they stayed on each page.')}
+    ${sec('leads','Enquiries', leads,
+      'Everyone who got in touch through the site in this period.')}
+    ${sec('work','What we did', groups)}
+    ${sec('moved','What moved', moved,
+      'What changed in the numbers, including anything that went the wrong way.')}
+    ${sec('room','Where we see room, and what we\'ll do', room, '', 'room')}
+    ${(next && on('next'))?`<section class="card dsec dnext"><h3>What we're doing ${esc(p.nextLabel)}</h3><ol>${next}</ol></section>`:''}
     <div class="card dfoot"><span>Prepared by JRNEE Technologies LLC for ${esc(r.client.legal||r.client.name)}</span>
       <span>Google Analytics · Search Console${n.connected.leads?' · leads':''}</span></div>
   </div>`;

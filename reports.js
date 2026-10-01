@@ -27,10 +27,15 @@ function resolvePeriod(kind, customStart, customEnd) {
 
   if (kind === 'custom' && customStart && customEnd) {
     start = customStart; end = customEnd > yesterday ? yesterday : customEnd;
-    label = `${prettyShort(start)} – ${prettyShort(end)}`;
+    const len = daysBetween(start, end);
+    const endsYesterday = end === yesterday;
+    label = endsYesterday ? `The last ${len} days` : `${prettyShort(start)} – ${prettyShort(end)}`;
     span = `${pretty(start)} to ${pretty(end)}`;
-    meta = { kind:'range', phrase:'in this period', prevPhrase:'in the period before',
-             vs:'the period before', nextLabel:'next' };
+    meta = { kind:'range',
+      phrase: endsYesterday ? `over the last ${len} days` : `between ${prettyShort(start)} and ${prettyShort(end)}`,
+      prevPhrase: endsYesterday ? `in the ${len} days before that` : 'in the stretch before it',
+      vs: endsYesterday ? `the ${len} days before` : 'the stretch before',
+      nextLabel: 'next' };
   } else if (kind === 'this-month') {
     const first = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1));
     start = ymd(first); end = yesterday;
@@ -149,9 +154,20 @@ const THEMES = [
   { b:'Design and content updates', c:'var(--green)', k:['design','copy','page','layout','photo','brand','colour','color','font','menu','navigation','rewrote','redesign'] },
   { b:'Other work', c:'var(--amber)', k:[] }
 ];
+function tidy(line) {
+  let l = line
+    .replace(/^\s*(we|i)\s+/i, '')                         // "We added…" -> "Added…"
+    .replace(/^\s*(just|also|then|finally)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[.;,]+$/, '')
+    .trim();
+  if (!l) return '';
+  return l.charAt(0).toUpperCase() + l.slice(1);
+}
 function groupWork(text) {
   const lines = String(text || '').split('\n')
     .map(l => l.replace(/^\s*[-*•\d.)]+\s*/, '').replace(/^\s*\w{3,9}\s+\d{1,2}\s*[:–—-]\s*/, '').trim())
+    .map(tidy)
     .filter(Boolean);
   const groups = THEMES.map(t => ({ b:t.b, c:t.c, items:[] }));
   lines.forEach(l => {
@@ -205,7 +221,7 @@ function buildNarrative(n, period) {
   } else if (n.clicks && n.clicks.cur > n.clicks.prev) {
     headline = `More people reached you through Google ${period.phrase}.`;
   } else {
-    headline = `Here's how the website performed ${period.phrase}.`;
+    headline = `Here's how your website has done ${period.phrase}.`;
   }
   const bits = [];
   if (lead) bits.push(`${lead.cur} people ${leadWord} ${period.phrase}` + (lead.prev ? `, ${lp >= 0 ? 'up' : 'down'} from ${lead.prev} ${period.prevPhrase}` : ''));
@@ -227,6 +243,16 @@ function buildNarrative(n, period) {
     highlights.push({ icon:'up', big:`+${hp(n.clicks.cur,n.clicks.prev)}%`, label:'more clicks from Google' });
   if (n.visitLen && n.visitLen.prev && n.visitLen.cur > n.visitLen.prev)
     highlights.push({ icon:'up', big:mmss(n.visitLen.cur), label:`average visit, up from ${mmss(n.visitLen.prev)}` });
+
+  // biggest faller, used to explain a drop rather than just report one
+  let faller = null;
+  if (n.queries && n.queriesPrev) {
+    const nowBy = Object.fromEntries(n.queries.map(q => [q.q, q]));
+    faller = n.queriesPrev
+      .map(q => ({ ...q, after: nowBy[q.q] ? nowBy[q.q].position : null, lostClicks: q.clicks - (nowBy[q.q]?.clicks || 0) }))
+      .filter(q => q.lostClicks >= 3 && (q.after === null || q.after - q.position >= 1.5))
+      .sort((a, b) => b.lostClicks - a.lostClicks)[0] || null;
+  }
 
   // what moved — only things the data actually shows
   if (n.queries && n.queriesPrev) {
@@ -252,12 +278,41 @@ function buildNarrative(n, period) {
     title:'You rank higher on average',
     body:`Average position ${n.position.prev} to ${n.position.cur} across every search you appear in.` });
   // and the things that went the wrong way
-  if (lead && lead.prev && lead.cur < lead.prev) moved.push({ icon:'down', down:true,
-    title:'Fewer enquiries than the period before',
-    body:`${lead.cur}, down from ${lead.prev}. Worth watching.` });
-  if (n.clicks && n.clicks.prev && n.clicks.cur < n.clicks.prev * 0.9) moved.push({ icon:'down', down:true,
-    title:'Fewer clicks from Google',
-    body:`${n.clicks.cur.toLocaleString()}, down from ${n.clicks.prev.toLocaleString()} ${period.prevPhrase}.` });
+  if (lead && lead.prev && lead.cur < lead.prev) {
+    const visUp = n.visitors && n.visitors.prev && n.visitors.cur >= n.visitors.prev;
+    moved.push({ icon:'down', down:true,
+      title:'Fewer enquiries than the period before',
+      body:`${lead.cur}, down from ${lead.prev}.`,
+      why: visUp
+        ? `Traffic didn't drop — ${n.visitors.cur.toLocaleString()} people still visited, up from ${n.visitors.prev.toLocaleString()}. So this is about what happens once they land, not about getting them there.`
+        : (n.visitors && n.visitors.prev
+            ? `Visits fell too, from ${n.visitors.prev.toLocaleString()} to ${n.visitors.cur.toLocaleString()}, so fewer people reached the site in the first place.`
+            : `We can't see the cause from traffic alone yet.`),
+      fix: visUp
+        ? `We'll go through the path from landing to enquiry — where the form sits, how many fields it asks for, and how obvious the phone number is on a mobile.`
+        : `We'll put the effort into traffic: the searches that already bring enquiries, and the pages that rank just below the first page.` });
+  }
+  if (n.clicks && n.clicks.prev && n.clicks.cur < n.clicks.prev * 0.9) {
+    const impDown = n.impressions && n.impressions.prev && n.impressions.cur < n.impressions.prev * 0.95;
+    const posWorse = n.position && n.position.prev && n.position.cur - n.position.prev >= 0.5;
+    let why, fix;
+    if (faller) {
+      why = `Most of the difference is one search: “${faller.q}” brought ${Math.round(faller.clicks)} clicks ${period.prevPhrase} and `
+          + (faller.after === null ? `doesn't appear at all now.` : `has slipped to position ${faller.after.toFixed(1)}.`);
+      fix = `We'll work on the page behind “${faller.q}” — refreshing the content, tightening the title, and pointing internal links at it to win that position back.`;
+    } else if (impDown) {
+      why = `Google showed the site ${n.impressions.cur.toLocaleString()} times, down from ${n.impressions.prev.toLocaleString()}. Fewer appearances, not a drop in how many people clicked when they saw you — often seasonal demand.`;
+      fix = `We'll widen the net: more pages aimed at the searches that already convert, so there are more chances to appear.`;
+    } else if (posWorse) {
+      why = `Your average position went from ${n.position.prev} to ${n.position.cur}. Slipping even a place or two costs a disproportionate share of clicks.`;
+      fix = `We'll find which pages lost ground and strengthen them — content depth first, then internal links.`;
+    } else {
+      why = `Appearances held up, so people saw the site and chose something else in the results.`;
+      fix = `We'll rewrite the titles and descriptions on the pages losing clicks so they match what people are actually searching for.`;
+    }
+    moved.push({ icon:'down', down:true, title:'Fewer clicks from Google',
+      body:`${n.clicks.cur.toLocaleString()}, down from ${n.clicks.prev.toLocaleString()} ${period.prevPhrase}.`, why, fix });
+  }
 
   // where we see room — real, findable problems
   if (n.queries) {
