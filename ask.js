@@ -28,6 +28,11 @@ const LEGAL = ['legal advice','sue','lawsuit','liable','liability','contract law
 function classify(question) {
   const q = ' ' + String(question || '').toLowerCase().trim() + ' ';
   return {
+    overall: has(q, ['how are things','how is it going','how are we doing','how we doing','overall',
+      'right now','how is everything','how are my numbers','are our numbers','are my numbers','numbers up',
+      'numbers down','how did we do','how are we looking','looking good','doing well','any good news',
+      'summary','in general','big picture','bottom line','how is the site','how is my site',
+      'what should i','should i be worried','is this good','is that good','is this normal']),
     money:   has(q, MONEY),
     pointed: has(q, POINTED),
     legal:   has(q, LEGAL),
@@ -52,9 +57,60 @@ function closer(rep, topic) {
   const pick = arr => arr.length ? arr[0] : null;
   const match = room.find(r => topic && (r.title || '').toLowerCase().includes(topic));
   const chosen = match || pick(room) || (fromMoved ? { fix: fromMoved.fix } : null);
-  if (chosen) return `Joel and the team are already on it — ${chosen.fix.charAt(0).toLowerCase() + chosen.fix.slice(1)}`;
+  if (chosen) {
+    let fix = chosen.fix;
+    // name the thing rather than saying "this search"
+    const q = (chosen.title || (match && match.title) || '').match(/[“"']([^”"']+)[”"']/);
+    if (q && /this search|that search|this page|that page/i.test(fix))
+      fix = fix.replace(/this search|that search/i, `“${q[1]}”`).replace(/this page|that page/i, `the page behind “${q[1]}”`);
+    return `Joel and the team are already on it — ${fix.charAt(0).toLowerCase() + fix.slice(1)}`;
+  }
   if ((c.next || []).length) return `Joel and the team are working on ${c.next[0].charAt(0).toLowerCase() + c.next[0].slice(1)} next.`;
   return `Joel and the team are looking at it, and it'll be in the next report either way.`;
+}
+
+
+/* "How are things looking?" — the question everyone asks first. */
+function overallAnswer(rep) {
+  const n = rep.numbers || {}, c = rep.content || {}, p = rep.period || {};
+  const lead = n.leads || n.keyEvents;
+  const pc = (a, b) => (b ? Math.round((a - b) / b * 100) : null);
+  const prev = p.prevPhrase || 'the period before';
+  const up = [], down = [], plain = [];
+
+  const note = (label, cur, prv, fmt) => {
+    if (cur == null) return;
+    const v = fmt ? fmt(cur) : nf(cur);
+    if (prv == null || !prv) { plain.push(`${label} sit at ${v}`); return; }
+    const d = pc(cur, prv);
+    const line = `${label} ${d > 0 ? 'are up' : d < 0 ? 'are down' : 'are level'}${d ? ` ${Math.abs(d)}%` : ''} at ${v}`;
+    (d >= 0 ? up : down).push(line);
+  };
+  if (lead) note('enquiries', lead.cur, lead.prev);
+  if (n.visitors) note('visits', n.visitors.cur, n.visitors.prev);
+  if (n.clicks) note('clicks from Google', n.clicks.cur, n.clicks.prev);
+
+  if (!up.length && !down.length && !plain.length) {
+    return { text:
+      `I can't see any figures for this period yet — the accounts behind this report are still being connected. `
+      + `Joel and the team are on that, and the moment data starts flowing it'll show up right here.`,
+      routed: false, flagged: false };
+  }
+
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const bits = [];
+  if (up.length && !down.length) bits.push(`${cap(up.slice(0, 2).join(', and '))} on ${prev}. A good run.`);
+  else if (up.length && down.length) bits.push(`Mixed, and worth knowing both halves: ${up[0]}, while ${down[0]}, compared with ${prev}.`);
+  else if (down.length) bits.push(`${cap(down.slice(0, 2).join(', and '))} on ${prev}.`);
+  else bits.push(`${cap(plain.join(', and '))} for this period.`);
+
+  if (lead && n.visitors && n.visitors.cur && lead.cur)
+    bits.push(`That's about one enquiry for every ${Math.round(n.visitors.cur / lead.cur)} people who land on the site.`);
+  if (c.keywords && c.keywords.pageOne)
+    bits.push(`You're on page one of Google for ${c.keywords.pageOne} search${c.keywords.pageOne === 1 ? '' : 'es'}${c.keywords.pageOnePrev != null ? `, against ${c.keywords.pageOnePrev} ${prev}` : ''}.`);
+  if (down.length) bits.push(`Nothing there is a surprise to us.`);
+  bits.push(closer(rep));
+  return { text: bits.join(' '), routed: false, flagged: false };
 }
 
 /* ---------------- answers, built only from this report ---------------- */
@@ -72,6 +128,8 @@ function answerFromData(question, rep) {
   if (k.money) return { text:
     `That's a question for Joel rather than for me — I can explain what the numbers show, but anything about billing, scope or what's included should come from him directly. I've sent him your question and he'll come back to you.`,
     routed: true, flagged: true, reason: 'billing' };
+
+  if (k.overall) { const a = overallAnswer(rep); return { ...a, flagged: !!k.pointed }; }
 
   // traffic
   if (k.traffic && n.visitors) {
@@ -219,10 +277,16 @@ function answerFromData(question, rep) {
       routed: false, flagged: false };
   }
 
-  // nothing matched
+  // nothing matched by name — answer with the overall picture rather than sending them away
+  const anyData = n.visitors || n.leads || n.keyEvents || n.clicks || (n.pages || []).length;
+  if (anyData) {
+    const a = overallAnswer(rep);
+    return { text: `I'll give you what the figures do show. ${a.text} If you meant something more specific, ask it straight out — or Joel can pick it up with you directly.`,
+      routed: false, flagged: !!k.pointed };
+  }
   return { text:
-    `That one's outside what the figures in this report can tell me, and I'd rather give you a straight answer than a guess. I've sent it to Joel — he'll have the context I don't and he'll come back to you on it.`,
-    routed: true, flagged: !!k.pointed, reason: 'no_match' };
+    `There aren't any figures flowing into this report yet, so I'd only be guessing. Joel and the team are getting the accounts connected — once they are, this is exactly the kind of question I can answer properly.`,
+    routed: true, flagged: !!k.pointed, reason: 'no_data' };
 }
 
 
@@ -240,6 +304,12 @@ VOICE
 - Three to five sentences. Enough to actually answer, short enough to read mid-scroll.
 - No jargon unless you explain it in the same breath. No bullet points, no headings, no sign-off.
 - Don't hedge everything into mush. If the data points somewhere, say so.
+
+BROAD QUESTIONS
+"How are things looking?", "are our numbers up?", "is this good?" — these are the most common
+questions and they always get a real answer. Summarise the movement in the headline figures
+against the period before, add one thing that stands out, and finish with what's being worked on.
+Never send a broad question away; there is always something in the DATA block to say.
 
 SHAPE OF A GOOD ANSWER
 1. The number, straight away.
