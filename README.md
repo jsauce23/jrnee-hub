@@ -39,9 +39,14 @@ Building one: **Reports** tab -> pick a client -> **New report** -> choose the p
 **Pull the numbers**. Paste what you did and what's next, hit **Build the report**, edit any
 text in place, then **Save draft** or **Publish to client**.
 
-**Preview** shows it exactly as the client will see it — no edit outlines, no admin buttons.
-**Download PDF** opens your browser's print dialog; choose "Save as PDF". Nothing is sent to
-the client until you hit **Publish**, and clients can download their own copy the same way.
+Nothing reaches the client until you hit **Publish**. Before that it's a draft only you can see,
+and **Delete draft** removes it (also available as the x on any draft in the list).
+
+- **Download** saves a standalone `.html` file of the report — opens in any browser, keeps the
+  charts and colours, works offline. Good for emailing or filing.
+- **Print / Save as PDF** opens the browser's print dialog, where "Save as PDF" gives you a PDF.
+
+Clients get both buttons on their own copy.
 
 Clients only ever see published reports, under their own **Reports** tab. Unpublishing hides
 a report again immediately.

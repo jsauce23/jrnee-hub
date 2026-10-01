@@ -833,13 +833,20 @@ async function showReports(clientId){
         <span class="tile" style="width:38px;height:38px;border-radius:11px;font-size:12px">${esc((r.title||'?').slice(0,3))}</span>
         <div class="m"><b>${esc(r.title||'Report')}</b><span>${esc(r.headline||r.span||'')}</span></div>
         ${r.status==='published' ? '<span class="conn on">Published</span>' : '<span class="conn">Draft</span>'}
+        ${(!IS_CLIENT && r.status!=='published') ? `<button class="tbtn admin" data-del="${esc(r.id)}" data-lbl="${esc(r.title||'')}" type="button" aria-label="Delete draft" style="padding:6px 10px">&times;</button>` : ''}
       </div>`).join('');
     view.innerHTML = `
       ${IS_CLIENT ? '' : `<a class="back admin" href="#/reports">← All clients</a>`}
       <div class="list-h"><div><div class="eyebrow">${IS_CLIENT?'Your reports':'Reports'}</div><h1>${IS_CLIENT?'Reports':'Reports'}</h1></div>
         ${IS_CLIENT ? '' : `<button class="tbtn pri admin" id="newRep" type="button">New report</button>`}</div>
       <div class="rlist">${rows || `<div class="empty"><b>No reports yet</b>${IS_CLIENT?'Your first one will appear here.':'Build the first one.'}</div>`}</div>`;
-    view.querySelectorAll('[data-open]').forEach(el => el.onclick = () => openReport(cid, el.dataset.open));
+    view.querySelectorAll('[data-open]').forEach(el => el.onclick = e => {
+      if (e.target.closest('[data-del]')) return;
+      openReport(cid, el.dataset.open);
+    });
+    view.querySelectorAll('[data-del]').forEach(b => b.onclick = e => {
+      e.stopPropagation(); deleteDraft(cid, b.dataset.del, b.dataset.lbl);
+    });
     const nb = $('#newRep'); if (nb) nb.onclick = () => newReport(cid);
   } catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load reports.</b> ${esc(e.message)}</div>`; }
 }
@@ -985,6 +992,47 @@ const CH_LABEL = { 'Organic Search':'Google and other search engines','Direct':'
   'Cross-network':'Google ad network','Display':'Display ads','Organic Video':'Video' };
 const BARC = ['var(--blue)','#06B6D4','#7C5CFF','#10B981','#F59E0B','#FF4D8D'];
 
+
+
+/* a standalone file of exactly what's on screen — opens anywhere, no hub needed */
+function downloadReport(){
+  const doc = view.querySelector('.doc');
+  if (!doc) return;
+  const clone = doc.cloneNode(true);
+  // freeze the animations into their finished state
+  clone.querySelectorAll('.rv').forEach(e => e.classList.add('in'));
+  clone.querySelectorAll('.bar .tr i').forEach(i => { i.style.width = i.dataset.w + '%'; });
+  clone.querySelectorAll('[data-dash]').forEach(s => { s.style.strokeDasharray = s.dataset.dash; });
+  clone.querySelectorAll('.chart .draw').forEach(p => { p.classList.remove('draw'); });
+  clone.querySelectorAll('[data-count]').forEach(el => { el.textContent = el.dataset.count; });
+
+  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+  const p = REP.period, name = REP.client.name;
+  const file = `${name} — ${p.label}`.replace(/[^\w –-]/g, '').replace(/\s+/g, ' ').trim();
+  const html = `<!DOCTYPE html>
+<html lang="en" data-theme="light"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(name)} — ${esc(p.label)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>${css}
+body{background:var(--bg);padding:24px 20px 60px}
+.wrap{max-width:860px;margin:0 auto}</style></head>
+<body><div class="wrap">${clone.outerHTML}</div></body></html>`;
+
+  const url = URL.createObjectURL(new Blob([html], { type:'text/html' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = file + '.html';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+async function deleteDraft(cid, id, label){
+  if (!confirm(`Delete the ${label} draft? This can't be undone.`)) return;
+  await post('/api/report/delete', { client: cid, id });
+  location.hash = '#/reports/' + encodeURIComponent(cid);
+  showReports(cid);
+}
 
 function animateDoc(){
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1181,19 +1229,24 @@ function viewDoc(mode){
   const bar = mode === 'published'
     ? `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <span class="conn on">Published</span><span class="saving">Your client can see this</span><div style="flex:1"></div>
-        <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
+        <button class="tbtn" id="dlBtn" type="button">Download</button>
+        <button class="tbtn" id="prBtn" type="button">Print / Save as PDF</button>
         <button class="tbtn" id="unpub" type="button">Move back to draft</button></div>`
     : `<div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <button class="tbtn" id="backEdit" type="button">← Change what you pasted</button>
         <span class="saving" id="savedAt">Draft · only you can see this</span><div style="flex:1"></div>
-        <button class="tbtn" id="dlBtn" type="button">Download PDF</button>
+        <button class="tbtn" id="dlBtn" type="button">Download</button>
+        <button class="tbtn" id="prBtn" type="button">Print / Save as PDF</button>
+        <button class="tbtn" id="delBtn" type="button">Delete draft</button>
         <button class="tbtn" id="saveDraft" type="button">Save draft</button>
         <button class="tbtn pri" id="publish" type="button">Publish to client</button></div>`;
   view.innerHTML = `<a class="back" href="#/reports/${encodeURIComponent(REP.clientId)}">← Reports</a>${bar}${docHtml()}`;
   animateDoc();
 
   const g = id => document.getElementById(id);
-  if (g('dlBtn')) g('dlBtn').onclick = () => print();
+  if (g('dlBtn')) g('dlBtn').onclick = () => downloadReport();
+  if (g('prBtn')) g('prBtn').onclick = () => print();
+  if (g('delBtn')) g('delBtn').onclick = () => deleteDraft(REP.clientId, REP.id, REP.period.label);
   if (g('backEdit')) g('backEdit').onclick = () => editReport();
   if (g('saveDraft')) g('saveDraft').onclick = async () => { REP.status='draft';
     await post('/api/report/save', { report: REP }); g('savedAt').textContent = 'Saved'; };
@@ -1211,9 +1264,11 @@ async function openReport(cid, id){
     if (IS_CLIENT){
       view.innerHTML = `<a class="back" href="#/reports">← Reports</a>
         <div id="reportBar" style="display:flex;justify-content:flex-end;margin-bottom:10px">
-          <button class="tbtn" id="dlBtn" type="button">Download PDF</button></div>${docHtml()}`;
+          <button class="tbtn" id="dlBtn" type="button">Download</button>
+          <button class="tbtn" id="prBtn" type="button">Print / Save as PDF</button></div>${docHtml()}`;
       animateDoc();
-      $('#dlBtn').onclick = () => print();
+      $('#dlBtn').onclick = () => downloadReport();
+      $('#prBtn').onclick = () => print();
       return;
     }
     $('#presentBtn').hidden = false;
