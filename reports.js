@@ -509,6 +509,88 @@ const CH_PLAIN = { 'Organic Search':'Google and other search engines','Direct':'
   'Organic Social':'Social media','Referral':'Links from other websites','Paid Search':'Paid search ads',
   'Paid Social':'Paid social ads','Email':'Email','Organic Maps':'Google Maps','Unassigned':'Unidentified traffic' };
 
+
+/* ---------------- what we're focused on, from live figures ----------------
+   Every item is tied to something real in the data. Candidates are ranked, the
+   strongest always show, and the rest rotate day to day so the list stays alive. */
+function buildFocuses(n, nar, seed) {
+  const C = [];
+  const kw = (nar && nar.keywords) || null;
+  const add = (p, doing, because) => C.push({ p, doing, because });
+  const lead = n.leads || n.keyEvents;
+
+  if (kw && kw.top) {
+    // just off page one — the cheapest ground to take
+    kw.top.filter(q => q.position > 10 && q.position <= 20 && q.impressions >= 40)
+      .slice(0, 2).forEach(q => add(1,
+        `Building out a page written around “${q.q}”`,
+        `it sits at position ${q.position.toFixed(1)} and was shown ${Math.round(q.impressions).toLocaleString()} times`));
+
+    // close to the top three, where most clicks live
+    kw.top.filter(q => q.position > 3 && q.position <= 8 && q.impressions >= 40)
+      .slice(0, 2).forEach(q => add(2,
+        `Pushing “${q.q}” toward the top three results`,
+        `it's at position ${q.position.toFixed(1)} already, and the first three results take most of the clicks`));
+
+    // seen plenty, clicked rarely
+    kw.top.filter(q => q.position <= 10 && q.impressions >= 150 && (q.ctr != null && q.ctr < 0.02))
+      .slice(0, 1).forEach(q => add(2,
+        `Rewriting the page title and description behind “${q.q}”`,
+        `people are seeing it ${Math.round(q.impressions).toLocaleString()} times without clicking`));
+
+    // keep momentum on anything climbing
+    (kw.risers || []).slice(0, 1).forEach(q => add(3,
+      `Adding depth to the page behind “${q.q}”`,
+      `it moved from position ${q.before.toFixed(0)} to ${q.position.toFixed(0)} and is worth backing up`));
+
+    // brand new ground
+    if ((kw.fresh || []).length) add(3,
+      `Expanding on the ${kw.fresh.length} search${kw.fresh.length === 1 ? '' : 'es'} you've started appearing for`,
+      `they're new this period and usually the first place more traffic comes from`);
+  }
+
+  if (n.pages && n.pages.length) {
+    const skim = n.pages.filter(p => p.views >= 30 && p.avgTime < 20).sort((a, b) => b.views - a.views)[0];
+    if (skim) add(2, `Reworking ${skim.path} so the next step is obvious`,
+      `it gets ${Math.round(skim.views).toLocaleString()} views but people leave after ${Math.round(skim.avgTime)} seconds`);
+    const best = n.pages.slice().sort((a, b) => b.avgTime - a.avgTime)[0];
+    if (best && best.avgTime >= 45) add(4, `Pointing more internal links at ${best.path}`,
+      `people stay on it longest, so it's worth sending more traffic there`);
+  }
+
+  if (n.devices && n.devices.length) {
+    const tot = n.devices.reduce((a, d) => a + d.sessions, 0) || 1;
+    const mob = n.devices.find(d => d.name === 'mobile');
+    if (mob && mob.sessions / tot >= 0.5) add(4,
+      `Keeping the mobile version quick and easy to act on`,
+      `${Math.round(mob.sessions / tot * 100)}% of your visits come from a phone`);
+  }
+
+  if (lead && lead.cur) add(3, `Keeping the turnaround on new enquiries short`,
+    `${lead.cur} came in this period, and replying the same day is what decides most of them`);
+
+  if (!n.connected || n.connected.search === false) add(1,
+    `Connecting Search Console so the search side is fully visible`,
+    `without it we can't see which searches bring people in`);
+
+  // steady work, true every period
+  add(5, `Publishing new pages around the services that bring the best enquiries`, null);
+  add(5, `Watching page speed and fixing anything Google flags`, null);
+  add(5, `Keeping the Google Business Profile active`, null);
+
+  C.sort((a, b) => a.p - b.p);
+  const strong = C.filter(x => x.p <= 2).slice(0, 2);
+  const rest = C.filter(x => !strong.includes(x));
+  // rotate the remainder so the list moves day to day without losing the real ones
+  const day = Math.floor((seed || Date.now()) / 864e5);
+  const picked = [];
+  for (let i = 0; i < rest.length && picked.length < (4 - strong.length); i++) {
+    picked.push(rest[(day + i) % rest.length]);
+  }
+  const out = strong.concat(picked.filter((x, i, a) => a.indexOf(x) === i));
+  return out.slice(0, 4).map(x => ({ doing: x.doing, because: x.because }));
+}
+
 /* ---------------- storage ---------------- */
 function ensureDirs() {
   fs.mkdirSync(REPORT_DIR, { recursive: true });
@@ -548,5 +630,5 @@ function deleteReport(clientId, id) {
 }
 const newId = () => new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.random().toString(36).slice(2,7);
 
-module.exports = { resolvePeriod, gatherNumbers, groupWork, buildNarrative, analyseKeywords, buildExplain,
+module.exports = { resolvePeriod, gatherNumbers, groupWork, buildNarrative, analyseKeywords, buildExplain, buildFocuses,
   listReports, getReport, saveReport, deleteReport, newId, DATA_DIR, pct, mmss };

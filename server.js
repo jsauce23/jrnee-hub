@@ -551,11 +551,7 @@ function liveBrief(c, live, days) {
   else if (watch.length) state = `It's been a quieter stretch: ${watch.slice(0, 2).join(', and ')}. Nothing here is a surprise to us, and the work below is aimed squarely at it.`;
   else state = `We're still gathering enough data to call a trend. Everything below is what we're working on in the meantime.`;
 
-  const focuses = [];
-  const asWork = t => t.replace(/^We'll\s+/i, '').replace(/^We\s+/i, '').replace(/\.$/, '');
-  (nar.room || []).slice(0, 3).forEach(r => { if (r.fix) focuses.push({ because: r.title, doing: cap(asWork(r.fix)) }); });
-  (nar.next || []).forEach(x => { if (focuses.length < 3) focuses.push({ because: null, doing: cap(asWork(x)) }); });
-  if (!focuses.length) focuses.push({ because: null, doing: 'Keeping the site fast, indexed and easy to get in touch through' });
+  const focuses = REPORTS.buildFocuses(n, nar, Date.now());
 
   return {
     asOf: new Date().toISOString(),

@@ -113,6 +113,10 @@ Render's logs as `[ask] model call failed`.
 Add `ANTHROPIC_API_KEY` in Render -> Environment. That's the only required step. Optionally set
 `ASK_MODEL` (defaults to `claude-sonnet-5`; `claude-haiku-4-5` is cheaper and faster).
 
+If the key was created at account level rather than inside a workspace, the API returns
+"This API key is not scoped to a workspace". Either create the key inside a workspace, or set
+`ANTHROPIC_WORKSPACE_ID` in Render to the workspace id and the hub sends it with every call.
+
 With a key set, questions go to the model with the whole report as context, and it can follow a
 conversation across several questions. Without one — or if the API call fails — answers fall back
 to the figures, so the feature never breaks.

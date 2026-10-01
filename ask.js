@@ -403,26 +403,51 @@ function answerFromData(question, rep) {
 /* ---------------- the model, when a key is set ---------------- */
 const API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const MODEL = process.env.ASK_MODEL || 'claude-sonnet-5';
+const WORKSPACE = (process.env.ANTHROPIC_WORKSPACE_ID || '').trim();   // only needed for account-level keys
 const hasModel = () => !!API_KEY;
 const BUILD = '2026-10-01-c';          // so we can tell which version is deployed
 let lastModelError = null;             // why the last model attempt failed, if it did
 
 /** A live check: is the key there, does the model answer, and if not, what did it say? */
+function apiHeaders() {
+  const h = { 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
+  if (WORKSPACE) h['anthropic-workspace-id'] = WORKSPACE;
+  return h;
+}
+
 async function health() {
+  const looksLikeKey = v => /^sk-ant-/.test(String(v || ''));
   const out = { build: BUILD, keyPresent: !!API_KEY,
-    keyLooksRight: /^sk-ant-/.test(API_KEY), keyLength: API_KEY.length,
-    model: MODEL, lastModelError, fetchAvailable: typeof fetch === 'function' };
+    keyLooksRight: looksLikeKey(API_KEY), keyLength: API_KEY.length,
+    model: looksLikeKey(MODEL) ? '(an API key is in ASK_MODEL — it belongs in ANTHROPIC_API_KEY)' : MODEL,
+    workspaceIdSet: !!WORKSPACE,
+    lastModelError, fetchAvailable: typeof fetch === 'function' };
+  if (looksLikeKey(MODEL)) {
+    out.result = 'ASK_MODEL contains an API key. Move it to ANTHROPIC_API_KEY and delete ASK_MODEL.';
+    return out;
+  }
   if (!API_KEY) { out.result = 'No ANTHROPIC_API_KEY set on the server.'; return out; }
   if (typeof fetch !== 'function') { out.result = 'This Node version has no fetch — needs Node 18 or newer.'; return out; }
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
-      headers:{ 'x-api-key': API_KEY, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
+      headers: apiHeaders(),
       body: JSON.stringify({ model: MODEL, max_tokens: 16, messages:[{ role:'user', content:'Reply with OK.' }] })
     });
     out.status = r.status;
     const body = await r.text();
-    if (!r.ok) { out.result = 'The API rejected the call.'; out.error = body.slice(0, 500); return out; }
+    if (!r.ok) {
+      out.result = 'The API rejected the call.';
+      out.error = body.slice(0, 500);
+      if (/workspace/i.test(body)) out.fix =
+        'This key belongs to the whole account rather than a workspace. Either create a new key inside a workspace '
+        + '(console.anthropic.com -> Settings -> Workspaces -> pick one -> API keys), or set ANTHROPIC_WORKSPACE_ID in Render to that workspace id.';
+      if (/authentication_error/i.test(body)) out.fix =
+        'The key itself was rejected. Create a fresh one at console.anthropic.com -> API keys and paste the whole value.';
+      if (/not_found/i.test(body)) out.fix =
+        'That model name is not available on this account. Set ASK_MODEL in Render to one that is, such as claude-haiku-4-5.';
+      return out;
+    }
     out.result = 'Working.';
     out.reply = (JSON.parse(body).content || []).map(b => b.text).join('').trim().slice(0, 60);
   } catch (e) {
@@ -540,7 +565,7 @@ async function answerWithModel(question, rep, history) {
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
-    headers: { 'x-api-key': API_KEY, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
+    headers: apiHeaders(),
     body: JSON.stringify({ model: MODEL, max_tokens: 500, system: SYSTEM, messages })
   });
   if (!r.ok) {
