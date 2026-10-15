@@ -25,12 +25,16 @@ const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN || '';
 const SESSION_HOURS = 12;
 
 const CLIENTS = JSON.parse(fs.readFileSync(path.join(__dirname, 'clients.json'), 'utf8'));
+/* Entries marked billingOnly are invoiced but have no website to report on,
+   so they stay out of the dashboard, the client list and reports. */
+const SITE_CLIENTS = CLIENTS.filter(c => !c.billingOnly);
 const APP = fs.readFileSync(path.join(__dirname, 'app.html'), 'utf8');
 const LOGIN = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
 const DOCS = fs.readFileSync(path.join(__dirname, 'api-docs.html'), 'utf8');
 const REPORTS = require('./reports.js');
 const ASK = require('./ask.js');
 const INVOICES = require('./invoices.js');
+const INVOICE_PDF = require('./invoice-pdf.js');
 const SA = loadServiceAccount();
 const CLIENT_PW = loadClientPasswords();
 const API_KEYS = loadApiKeys();
@@ -819,9 +823,9 @@ http.createServer(async (req, res) => {
     if (u.pathname === '/api/clients') {
       if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
       const fresh = u.searchParams.has('refresh');
-      const list = await Promise.all(CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
+      const list = await Promise.all(SITE_CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
       return json(res, 200, {
-        clients: CLIENTS.map((c, i) => { const { recent, ...rest } = list[i]; return { ...publicClient(c), ...rest }; }),
+        clients: SITE_CLIENTS.map((c, i) => { const { recent, ...rest } = list[i]; return { ...publicClient(c), ...rest }; }),
         config: { google: !!SA, netlify: !!NETLIFY_TOKEN || !!Object.keys(GHL_TOKENS).length, ask: ASK.hasModel(), serviceAccount: SA ? SA.client_email : null }
       });
     }
@@ -829,8 +833,8 @@ http.createServer(async (req, res) => {
     if (u.pathname === '/api/dashboard') {
       if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
       const fresh = u.searchParams.has('refresh');
-      const list = await Promise.all(CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
-      const clients = CLIENTS.map((c, i) => ({ ...publicClient(c), ...list[i] }));
+      const list = await Promise.all(SITE_CLIENTS.map(c => cached('s:' + c.id, () => summary(c), fresh)));
+      const clients = SITE_CLIENTS.map((c, i) => ({ ...publicClient(c), ...list[i] }));
       return json(res, 200, {
         ...buildDashboard(clients),
         generated: new Date().toISOString(),
@@ -919,6 +923,23 @@ http.createServer(async (req, res) => {
         const inv = INVOICES.getInvoice(u.searchParams.get('c'), u.searchParams.get('month'));
         if (!inv) return json(res, 404, { error: 'That invoice has not been generated yet.' });
         return json(res, 200, inv);
+      }
+
+      if (u.pathname === '/api/invoice/pdf') {
+        const inv = INVOICES.getInvoice(u.searchParams.get('c'), u.searchParams.get('month'));
+        if (!inv) return json(res, 404, { error: 'That invoice has not been generated yet.' });
+        let pdf;
+        try { pdf = INVOICE_PDF.invoicePdf(inv); }
+        catch (e) { return json(res, 500, { error: 'Could not build the PDF: ' + e.message }); }
+        const name = INVOICE_PDF.fileName(inv);
+        res.writeHead(200, {
+          'Content-Type': 'application/pdf',
+          'Content-Length': pdf.length,
+          'Content-Disposition': `attachment; filename="${name.replace(/"/g, '')}"; ` +
+            `filename*=UTF-8''${encodeURIComponent(name)}`,
+          'Cache-Control': 'no-store'
+        });
+        return res.end(pdf);
       }
 
       if (u.pathname === '/api/invoice/ledger') {

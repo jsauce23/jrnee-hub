@@ -152,9 +152,15 @@ issuing new numbers, so you can click it as often as you like.
 
 Every invoice reads "Website maintenance / development" and comes from JRNEE Technologies LLC.
 
-- **Download** saves a standalone `.html` file, named `Invoice 25305 - Client - October 2026.html`.
-  It opens in any browser, keeps the branding, works offline.
-- **Print / Save as PDF** opens the browser's print dialog for a real PDF.
+- **Download** saves a real PDF, named `Invoice 25305 - Client - October 2026.pdf`. Always exactly
+  one page, with crisp vector text — about 27 KB, fine to email.
+- **Print / Save as PDF** opens the browser's print dialog if you'd rather print the on-screen view.
+
+The PDF is drawn by `invoice-pdf.js`, which has **no dependencies** — nothing extra installs on
+Render, so it can't break on a deploy. The line-item table measures itself against the space left
+after the totals and payment panel, so the invoice can never spill onto a second page; if a future
+invoice ever had more lines than fit, it shows the ones that do plus "+ N more items" and still
+totals correctly.
 - **Mark paid** flags it in the list; the invoice then shows a Paid stamp.
 
 ### Setting who gets billed
@@ -171,6 +177,12 @@ A client is invoiced when its entry in `clients.json` has a `billing` block:
 Clients without one are skipped silently — no invoice, no error. Optional extras inside `billing`:
 `detail` (overrides the line under the description), `billTo` (a different legal name on the
 invoice), `poNumber`, and `termsDays` (defaults to 30).
+
+### Billing something that isn't a website client
+
+Add `"billingOnly": true` at the top level of the entry (next to `id` and `name`). It then appears
+on the Invoices tab only — not in Clients, not on the dashboard, not in Reports — so an entity you
+bill but don't run a website for doesn't sit there showing "not connected" everywhere.
 
 ### Optional settings in Render
 

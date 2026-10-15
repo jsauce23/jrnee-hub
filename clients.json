@@ -57,5 +57,18 @@
       "monthly": 3500,
       "description": "Website maintenance / development"
     }
+  },
+  {
+    "id": "aroundsa",
+    "name": "Around SA Marketing",
+    "legal": "Around SA Marketing LLC",
+    "domain": "",
+    "initials": "AS",
+    "status": "Billing only",
+    "billingOnly": true,
+    "billing": {
+      "monthly": 5000,
+      "description": "Business development / application development"
+    }
   }
 ]
