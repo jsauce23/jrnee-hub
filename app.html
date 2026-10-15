@@ -2245,7 +2245,7 @@ function invoiceHtml(inv) {
       </div>
       <div>
         <div class="k">Due</div>
-        <div class="v"><b>${esc(invDate(inv.dueOn))}</b><small>Net ${inv.termsDays}</small></div>
+        <div class="v"><b>${esc(invDate(inv.dueOn))}</b><small>${esc(inv.termsLabel || ('Net ' + inv.termsDays))}</small></div>
       </div>
       ${inv.poNumber ? `<div><div class="k">PO number</div><div class="v">${esc(inv.poNumber)}</div></div>` : ''}
     </div>

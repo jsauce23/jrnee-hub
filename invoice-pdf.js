@@ -255,7 +255,8 @@ function invoicePdf(inv) {
     { k: 'Billed to', lines: [[inv.billTo.name, true], [inv.billTo.domain, false]] },
     { k: 'From',      lines: [[inv.from.legal, true], [inv.from.line1, false], [inv.from.email, false]] },
     { k: 'Issued',    lines: [[niceDate(inv.issuedOn), false]] },
-    { k: 'Due',       lines: [[niceDate(inv.dueOn), true], [`Net ${inv.termsDays}`, false]] }
+    { k: 'Due',       lines: [[niceDate(inv.dueOn), true],
+                              [inv.termsLabel || `Net ${inv.termsDays}`, false]] }
   ];
   let metaBottom = y;
   cols.forEach((col, i) => {

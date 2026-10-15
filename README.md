@@ -176,7 +176,24 @@ A client is invoiced when its entry in `clients.json` has a `billing` block:
 
 Clients without one are skipped silently — no invoice, no error. Optional extras inside `billing`:
 `detail` (overrides the line under the description), `billTo` (a different legal name on the
-invoice), `poNumber`, and `termsDays` (defaults to 30).
+invoice), and `poNumber`.
+
+**Payment terms per client.** The default is Net 30. For anyone who pays up front, set the days to
+zero and give the wording you want printed:
+
+```json
+"billing": {
+  "monthly": 5000,
+  "description": "Business development / application development",
+  "termsDays": 0,
+  "terms": "Due on the 1st"
+}
+```
+
+`termsDays` moves the due date — 0 means due the day it's issued, which is the 1st of the month
+being billed. `terms` is only the line of text under that date; leave it out and it reads
+"Net 30", "Net 15" or "Due on receipt" to match. If you change terms for a client who already has
+invoices, the next generate quietly corrects their due dates. Invoice numbers never move.
 
 ### Billing something that isn't a website client
 

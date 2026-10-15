@@ -68,7 +68,25 @@
     "billingOnly": true,
     "billing": {
       "monthly": 5000,
-      "description": "Business development / application development"
+      "description": "Business development / application development",
+      "termsDays": 0,
+      "terms": "Due on the 1st"
+    }
+  },
+  {
+    "id": "belugaair",
+    "name": "Beluga Air",
+    "legal": "Beluga Air",
+    "domain": "",
+    "initials": "BA",
+    "status": "Billing only",
+    "billingOnly": true,
+    "billing": {
+      "monthly": 1250,
+      "description": "Application maintenance",
+      "detail": "TIDE \u2014 technician commission and payroll application",
+      "termsDays": 0,
+      "terms": "Due on the 1st"
     }
   }
 ]

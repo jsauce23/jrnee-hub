@@ -76,13 +76,17 @@ function billingFor(c) {
   if (!b) return null;
   const amount = Number(b.monthly != null ? b.monthly : b.amount);
   if (!amount || amount <= 0) return null;
+  // termsDays 0 means it's due the day it's issued — the 1st of the month being
+  // billed. `terms` overrides the printed wording for anything unusual.
+  const days = b.termsDays != null ? Number(b.termsDays) : TERMS_DAYS;
   return {
     amount,
     description: b.description || 'Website maintenance / development',
     detail: b.detail || null,
     poNumber: b.poNumber || null,
     billTo: b.billTo || null,
-    terms: Number(b.termsDays || TERMS_DAYS)
+    terms: days,
+    termsLabel: b.terms || (days <= 0 ? 'Due on receipt' : `Net ${days}`)
   };
 }
 
@@ -141,7 +145,19 @@ function build(client, month, opts) {
   if (!bill) throw new Error(`${client.name} has no monthly amount set in clients.json.`);
 
   const existing = getInvoice(client.id, month);
-  if (existing && !(opts && opts.rebuild)) return { invoice: existing, created: false };
+  if (existing && !(opts && opts.rebuild)) {
+    // Terms are a standing business decision, so if they've changed in
+    // clients.json since this invoice was generated, bring it up to date.
+    // The number, issue date and paid status are its identity — those stay.
+    const label = bill.termsLabel;
+    if (existing.termsDays !== bill.terms || existing.termsLabel !== label) {
+      existing.termsDays = bill.terms;
+      existing.termsLabel = label;
+      existing.dueOn = addDays(existing.issuedOn, bill.terms);
+      saveInvoice(existing);
+    }
+    return { invoice: existing, created: false };
+  }
 
   const mp = monthParts(month);
   // Issued on the first of the month being billed, unless that's still ahead of us.
@@ -172,6 +188,7 @@ function build(client, month, opts) {
     issuedOn: issued,
     dueOn: addDays(issued, bill.terms),
     termsDays: bill.terms,
+    termsLabel: bill.termsLabel,
     status: existing ? existing.status : 'open',
     from: { ...FROM },
     billTo: {
