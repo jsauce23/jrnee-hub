@@ -189,7 +189,33 @@ td.pth{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--s
 .tabs a{font-size:13.5px;font-weight:700;padding:8px 12px;border-radius:10px;color:var(--slate);white-space:nowrap}
 .tabs a:hover{color:var(--ink)}
 .tabs a.on{background:var(--blue-soft);color:var(--blue)}
-@media (max-width:620px){.brand b{display:none}.tabs{margin-left:4px}.tabs a{padding:7px 9px;font-size:12.5px}}
+/* the tab strip scrolls on its own rather than squashing into the buttons */
+.tabs{display:flex;gap:4px;margin-left:14px;min-width:0;flex:1 1 auto;
+  overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs{-webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 14px),transparent 100%);
+  mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 14px),transparent 100%)}
+@media (min-width:900px){.tabs{-webkit-mask-image:none;mask-image:none;flex:0 1 auto}}
+.top .wrap > .tact{display:flex;align-items:center;gap:8px;flex:none;margin-left:auto}
+
+@media (max-width:760px){
+  /* tabs drop to their own row so they can't collide with the buttons */
+  .top .wrap{flex-wrap:wrap;height:auto;padding-top:10px;padding-bottom:0}
+  .tabs{order:3;flex:1 0 100%;width:100%;margin:6px 0 0;padding-bottom:8px;gap:4px}
+  .tabs a{padding:8px 12px;font-size:13px}
+  .tabs a .lg{display:none}            /* "My Dashboard" becomes "Dashboard" */
+  .tact{margin-left:auto}
+}
+@media (max-width:620px){
+  .tabs{margin-left:0}
+  .tabs a{padding:8px 11px;font-size:12.5px}
+  .top .wrap{gap:8px}
+}
+@media (max-width:420px){
+  .brand small{display:none}
+  .tabs a{padding:7px 10px;font-size:12px}
+  .top .wrap > .tact{gap:5px}
+}
 
 /* ---- dashboard ---- */
 .alerts{display:grid;gap:10px}
@@ -567,6 +593,108 @@ img,svg,video,canvas{max-width:100%;height:auto}
   .ktab{font-size:12.5px}
 }
 
+
+/* ---------- invoices ---------- */
+.ivbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:18px}
+.ivfield label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.ivfield select,.ivfield input{font:inherit;font-size:14.5px;padding:11px 13px;border:1px solid var(--line);
+  border-radius:11px;background:var(--surface);color:var(--ink);min-width:200px}
+.ivfield select:focus,.ivfield input:focus{outline:2px solid var(--blue);outline-offset:1px}
+.ivbar .sp{flex:1}
+.ivnote{font-size:13px;color:var(--muted);margin-top:12px}
+
+.ivlist{display:grid;gap:10px;margin-top:18px}
+.ivrow{display:flex;align-items:center;gap:13px;padding:14px 16px;border:1px solid var(--line);
+  border-radius:14px;background:var(--surface);box-shadow:var(--shadow);transition:border-color .2s,transform .2s}
+.ivrow:hover{border-color:color-mix(in srgb,var(--blue) 38%,var(--line));transform:translateY(-1px)}
+.ivrow.done{border-color:color-mix(in srgb,var(--good) 34%,var(--line))}
+.ivrow .m{flex:1;min-width:0}
+.ivrow b{display:block;font-weight:800;letter-spacing:-.02em}
+.ivrow span.sub{display:block;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ivrow .amt{font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ivnum{font-family:var(--mono);font-size:11px;color:var(--blue);background:var(--blue-soft);
+  border-radius:7px;padding:4px 9px;white-space:nowrap}
+.ivnum.none{color:var(--muted);background:var(--soft)}
+.ivacts{display:flex;gap:6px;flex-wrap:wrap}
+.ivacts .tbtn{padding:7px 11px;font-size:13px}
+.ivtot{display:flex;align-items:baseline;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.ivtot b{font-size:23px;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.ivtot span{font-size:13.5px;color:var(--muted)}
+
+/* ---------- the invoice document ---------- */
+.inv{max-width:860px;margin:16px auto 0;background:#fff;color:#0A1224;border-radius:18px;
+  box-shadow:0 1px 2px rgba(10,18,36,.05),0 20px 50px -30px rgba(10,18,36,.4);overflow:hidden}
+.inv *{box-sizing:border-box}
+.inv .ihead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;
+  padding:34px 38px 26px;flex-wrap:wrap;position:relative}
+.inv .ihead > * + *{margin-left:24px}
+.inv .ihead::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+  background:linear-gradient(90deg,#22D3EE,#1257FF,#FBBF24,#34D399,#A78BFA,#FF4D8D)}
+.inv .ibrand{display:flex;align-items:center;gap:12px}
+.inv .ibrand svg + div{margin-left:12px}
+.inv .ibrand svg{width:44px;height:44px;display:block;border-radius:13px;flex:none}
+.inv .ibrand .bw{font-size:25px;font-weight:800;letter-spacing:-.045em;line-height:1;color:#0A1224}
+.inv .ibrand .bw i{font-style:normal;color:#1257FF}
+.inv .ibrand .legal{font-size:11.5px;color:#6B7A95;margin-top:4px;letter-spacing:.01em}
+.inv .ititle{text-align:right}
+.inv .ititle h1{font-size:30px;font-weight:800;letter-spacing:-.05em;margin:0;color:#0A1224;line-height:1}
+.inv .ititle .num{font-family:var(--mono);font-size:14px;color:#1257FF;margin-top:8px;letter-spacing:.04em}
+.inv .ititle .paid{display:inline-block;margin-top:9px;font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.14em;text-transform:uppercase;background:#E7F7F0;color:#0E9F6E;border-radius:20px;padding:4px 11px}
+
+.inv .imeta{display:flex;gap:34px;flex-wrap:wrap;padding:26px 38px 0}
+.inv .imeta > div{min-width:150px;padding-right:34px}
+.inv .imeta > div:last-child{padding-right:0}
+.inv .imeta .k{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#92A0B8}
+.inv .imeta .v{font-size:14.5px;margin-top:5px;color:#0A1224;line-height:1.5}
+.inv .imeta .v b{font-weight:700}
+.inv .imeta .v small{display:block;font-size:12.5px;color:#6B7A95;margin-top:2px}
+
+.inv table{width:100%;border-collapse:collapse;margin-top:28px}
+.inv thead th{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:#92A0B8;font-weight:500;text-align:left;padding:0 38px 10px;border-bottom:1px solid #E6EBF4}
+.inv thead th.r{text-align:right}
+.inv tbody td{padding:18px 38px;border-bottom:1px solid #EEF1F7;vertical-align:top;font-size:15px}
+.inv tbody td.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.inv tbody td b{display:block;font-weight:700;letter-spacing:-.01em}
+.inv tbody td small{display:block;font-size:13px;color:#6B7A95;margin-top:4px}
+
+.inv .isum{display:flex;justify-content:flex-end;padding:20px 38px 0}
+.inv .isum table{width:auto;min-width:280px;margin:0}
+.inv .isum td{padding:7px 28px 7px 0;border:0;font-size:14.5px;color:#4B5A74}
+.inv .isum td.r{padding-right:0;min-width:120px}
+.inv .isum td.r{text-align:right;font-variant-numeric:tabular-nums;color:#0A1224}
+.inv .isum tr.grand td{padding-top:14px;border-top:2px solid #0A1224;font-size:21px;font-weight:800;
+  letter-spacing:-.035em;color:#0A1224}
+
+.inv .ifoot{margin-top:30px;padding:24px 38px 32px;background:#F7F9FD;border-top:1px solid #E6EBF4}
+.inv .ifoot .pay{display:flex;gap:34px;flex-wrap:wrap}
+.inv .ifoot .pay > div{padding-right:34px}
+.inv .ifoot .pay > div:last-child{padding-right:0}
+.inv .ifoot .k{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#92A0B8}
+.inv .ifoot .v{font-size:14px;color:#2B3A55;margin-top:5px;line-height:1.55;max-width:38ch}
+.inv .thanks{margin-top:22px;padding-top:18px;border-top:1px solid #E6EBF4;
+  font-size:13.5px;color:#6B7A95;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.inv .thanks > span:first-child{margin-right:auto;padding-right:16px}
+
+@media (max-width:620px){
+  .inv .ihead{padding:24px 20px 20px}
+  .inv .imeta{padding:20px 20px 0;gap:20px}
+  .inv thead th{padding:0 20px 10px}
+  .inv tbody td{padding:14px 20px}
+  .inv .isum{padding:16px 20px 0}
+  .inv .ifoot{padding:20px}
+  .inv .ititle{text-align:left}
+}
+@media print{
+  .top,.ivbar,.ivlist,.ivtot,.ivnote,#reportBar,.back,.tbtn{display:none!important}
+  body{background:#fff!important;padding:0}
+  .inv{box-shadow:none;border-radius:0;margin:0;max-width:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .inv .ihead::after,.inv .ifoot{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{margin:12mm}
+}
+
 @media print{.rv2{opacity:1!important;transform:none!important}.sec .chart .dr{animation:none;stroke-dashoffset:0}}
 
 @media print{ .askwrap{display:none!important} }
@@ -666,16 +794,18 @@ img,svg,video,canvas{max-width:100%;height:auto}
       <b>JRNEE<i>.ai</i></b><small>Website Hub</small>
     </a>
     <nav class="tabs admin" aria-label="Admin">
-      <a href="#/" data-tab="dash">My Dashboard</a>
+      <a href="#/" data-tab="dash"><span class="lg">My </span>Dashboard</a>
       <a href="#/clients" data-tab="clients">Clients</a>
       <a href="#/reports" data-tab="reports">Reports</a>
       <a href="#/questions" data-tab="questions">Questions</a>
+      <a href="#/invoices" data-tab="invoices">Invoices</a>
     </nav>
-    <div class="sp"></div>
-    <button class="tbtn exitp" id="exitBtn" type="button"><svg viewBox="0 0 20 20"><path d="M12 5 7 10l5 5"/></svg><span>Exit presentation</span></button>
-    <button class="tbtn admin" id="presentBtn" type="button" hidden><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="M10 14v3M7 17h6"/></svg><span>Present</span></button>
-    <button class="tbtn" id="themeBtn" type="button"></button>
-    <a class="tbtn logout" href="/logout"><svg viewBox="0 0 20 20"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 14l4-4-4-4M16 10H8"/></svg><span>Log out</span></a>
+    <div class="tact">
+      <button class="tbtn exitp" id="exitBtn" type="button"><svg viewBox="0 0 20 20"><path d="M12 5 7 10l5 5"/></svg><span>Exit presentation</span></button>
+      <button class="tbtn admin" id="presentBtn" type="button" hidden><svg viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"/><path d="M10 14v3M7 17h6"/></svg><span>Present</span></button>
+      <button class="tbtn" id="themeBtn" type="button"></button>
+      <a class="tbtn logout" href="/logout"><svg viewBox="0 0 20 20"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 14l4-4-4-4M16 10H8"/></svg><span>Log out</span></a>
+    </div>
   </div>
 </header>
 
@@ -1880,6 +2010,292 @@ async function showThread(cid, rid){
   } catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't open that.</b> ${esc(e.message)}</div>`; }
 }
 
+
+/* ================= invoices ================= */
+const INV_MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+let INV_STATE = { month: null, data: null };
+
+const usd = n => Number(n || 0).toLocaleString('en-US',
+  { style:'currency', currency:'USD', minimumFractionDigits:2 });
+const invDate = iso => {
+  if (!iso) return '—';
+  const [y,m,d] = iso.split('-').map(Number);
+  return `${INV_MONTHS[m-1]} ${d}, ${y}`;
+};
+const INV_LOGO = '<svg viewBox="0 0 34 34" aria-hidden="true">'
+  + '<rect width="34" height="34" rx="10" fill="#1257FF"/>'
+  + '<path d="M11 10.5 H23 V20.5 A5 5 0 0 1 13 20.5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>'
+  + '<circle cx="11" cy="10.5" r="2.9" fill="#fff"/></svg>';
+
+/* ---- the month picker: this month first, then the next 11 back ---- */
+function monthOptions(current, known) {
+  const seen = new Set(known || []);
+  const [cy, cm] = current.split('-').map(Number);
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(Date.UTC(cy, cm - 1 - i, 1));
+    seen.add(`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`);
+  }
+  return [...seen].sort().reverse();
+}
+
+async function showInvoices(month) {
+  document.body.classList.remove('present','editing');
+  const pb = $('#presentBtn'); if (pb) pb.hidden = true;
+  view.innerHTML = loading('Loading invoices…');
+  try {
+    const qs = month ? '?month=' + encodeURIComponent(month) : '';
+    const d = await api('/api/invoices' + qs);
+    INV_STATE = { month: d.month, data: d };
+    renderInvoices();
+  } catch (e) {
+    view.innerHTML = `<div class="notice"><b>Couldn't load invoices.</b> ${esc(e.message)}</div>`;
+  }
+}
+
+function renderInvoices() {
+  const d = INV_STATE.data;
+  const months = monthOptions(d.currentMonth, d.months);
+  const opts = months.map(m => {
+    const [y, mo] = m.split('-').map(Number);
+    const lbl = `${INV_MONTHS[mo-1]} ${y}` + (m === d.currentMonth ? ' — this month' : '');
+    return `<option value="${m}" ${m === d.month ? 'selected' : ''}>${esc(lbl)}</option>`;
+  }).join('');
+
+  const clientOpts = d.rows.map(r =>
+    `<option value="${esc(r.clientId)}">${esc(r.clientName)} — ${usd(r.amount)}</option>`).join('');
+
+  const rows = d.rows.map(r => `
+    <div class="ivrow ${r.status === 'paid' ? 'done' : ''}">
+      <span class="tile" style="width:38px;height:38px;border-radius:11px;font-size:12px">${esc(r.initials)}</span>
+      <div class="m">
+        <b>${esc(r.legal)}</b>
+        <span class="sub">${esc(r.description)}${r.dueOn ? ' · due ' + esc(invDate(r.dueOn)) : ''}</span>
+      </div>
+      <span class="ivnum ${r.exists ? '' : 'none'}">${r.exists ? '#' + r.number : 'not generated'}</span>
+      <span class="amt">${usd(r.total)}</span>
+      <div class="ivacts">
+        ${r.exists ? `
+          <button class="tbtn" data-open="${esc(r.clientId)}" type="button">Open</button>
+          <button class="tbtn" data-dl="${esc(r.clientId)}" type="button">Download</button>
+          <button class="tbtn" data-paid="${esc(r.clientId)}" type="button">${r.status === 'paid' ? 'Mark unpaid' : 'Mark paid'}</button>
+        ` : `
+          <button class="tbtn pri" data-make="${esc(r.clientId)}" type="button">Create invoice</button>
+        `}
+      </div>
+    </div>`).join('');
+
+  const total = d.rows.reduce((t, r) => t + Number(r.total || 0), 0);
+  const made = d.rows.filter(r => r.exists).length;
+
+  view.innerHTML = `
+    <div class="list-h">
+      <div><div class="eyebrow">Internal · billing</div><h1>Invoices</h1></div>
+      <button class="tbtn pri" id="genAll" type="button">Generate all</button>
+    </div>
+
+    <section class="sec card">
+      <div class="sec-h"><h2>${esc(d.monthLabel)}</h2><p>One invoice per client per month</p></div>
+      <div class="ivbar">
+        <div class="ivfield">
+          <label for="ivMonth">Month</label>
+          <select id="ivMonth">${opts}</select>
+        </div>
+        <div class="ivfield">
+          <label for="ivClient">Client</label>
+          <select id="ivClient">${clientOpts}</select>
+        </div>
+        <div class="ivfield">
+          <label>&nbsp;</label>
+          <button class="tbtn pri" id="ivMake" type="button" style="padding:12px 18px">Create invoice</button>
+        </div>
+        <div class="sp"></div>
+      </div>
+      <p class="ivnote">${made} of ${d.rows.length} generated for ${esc(d.monthLabel)} · next number will be
+        <b>#${d.nextNumber}</b> · from ${esc(d.from.legal)}</p>
+
+      <div class="ivlist">${rows || '<div class="empty"><b>No billable clients</b>Add a <code>billing</code> block to a client in clients.json.</div>'}</div>
+
+      <div class="ivtot"><b>${usd(total)}</b><span>billed for ${esc(d.monthLabel)}</span></div>
+    </section>`;
+
+  $('#ivMonth').onchange = e => { location.hash = '#/invoices/' + e.target.value; };
+  $('#ivMake').onclick = () => makeInvoice($('#ivClient').value);
+  $('#genAll').onclick = genAllInvoices;
+  view.querySelectorAll('[data-make]').forEach(b => b.onclick = () => makeInvoice(b.dataset.make));
+  view.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openInvoice(b.dataset.open));
+  view.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => downloadInvoice(b.dataset.dl));
+  view.querySelectorAll('[data-paid]').forEach(b => b.onclick = () => togglePaid(b.dataset.paid));
+}
+
+async function makeInvoice(clientId) {
+  try {
+    const r = await post('/api/invoice/create', { client: clientId, month: INV_STATE.month });
+    await showInvoices(INV_STATE.month);
+    openInvoice(clientId);
+  } catch (e) {
+    view.insertAdjacentHTML('afterbegin', `<div class="notice"><b>Couldn't create that invoice.</b> ${esc(e.message)}</div>`);
+  }
+}
+
+async function genAllInvoices() {
+  const btn = $('#genAll'); if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    const r = await post('/api/invoice/create-all', { month: INV_STATE.month });
+    await showInvoices(INV_STATE.month);
+    const made = r.created.length, had = r.existing.length;
+    const msg = made
+      ? `<b>${made} invoice${made === 1 ? '' : 's'} generated.</b>` + (had ? ` ${had} already existed and kept ${had === 1 ? 'its' : 'their'} number.` : '')
+      : `<b>Everything was already generated for this month.</b> Nothing changed.`;
+    view.insertAdjacentHTML('afterbegin', `<div class="notice">${msg}</div>`);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate all'; }
+    view.insertAdjacentHTML('afterbegin', `<div class="notice"><b>Couldn't generate.</b> ${esc(e.message)}</div>`);
+  }
+}
+
+async function togglePaid(clientId) {
+  const row = INV_STATE.data.rows.find(r => r.clientId === clientId);
+  const next = row && row.status === 'paid' ? 'open' : 'paid';
+  try {
+    await post('/api/invoice/status', { client: clientId, month: INV_STATE.month, status: next });
+    showInvoices(INV_STATE.month);
+  } catch (e) { /* leave the list as it is */ }
+}
+
+/* ---- the document ---- */
+function invoiceHtml(inv) {
+  const lines = inv.lines.map(l => `
+    <tr>
+      <td><b>${esc(l.description)}</b>${l.detail ? `<small>${esc(l.detail)}</small>` : ''}</td>
+      <td class="r">${l.qty}</td>
+      <td class="r">${usd(l.rate)}</td>
+      <td class="r">${usd(l.amount)}</td>
+    </tr>`).join('');
+
+  return `<div class="inv" id="invDoc">
+    <div class="ihead">
+      <div class="ibrand">
+        ${INV_LOGO}
+        <div>
+          <div class="bw">JRNEE<i>.ai</i></div>
+          <div class="legal">${esc(inv.from.legal)}</div>
+        </div>
+      </div>
+      <div class="ititle">
+        <h1>Invoice</h1>
+        <div class="num">#${inv.number}</div>
+        ${inv.status === 'paid' ? '<div class="paid">Paid</div>' : ''}
+      </div>
+    </div>
+
+    <div class="imeta">
+      <div>
+        <div class="k">Billed to</div>
+        <div class="v"><b>${esc(inv.billTo.name)}</b>${inv.billTo.domain ? `<small>${esc(inv.billTo.domain)}</small>` : ''}</div>
+      </div>
+      <div>
+        <div class="k">From</div>
+        <div class="v"><b>${esc(inv.from.legal)}</b><small>${esc(inv.from.line1)}</small><small>${esc(inv.from.email)}</small></div>
+      </div>
+      <div>
+        <div class="k">Issued</div>
+        <div class="v">${esc(invDate(inv.issuedOn))}</div>
+      </div>
+      <div>
+        <div class="k">Due</div>
+        <div class="v"><b>${esc(invDate(inv.dueOn))}</b><small>Net ${inv.termsDays}</small></div>
+      </div>
+      ${inv.poNumber ? `<div><div class="k">PO number</div><div class="v">${esc(inv.poNumber)}</div></div>` : ''}
+    </div>
+
+    <table>
+      <thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th></tr></thead>
+      <tbody>${lines}</tbody>
+    </table>
+
+    <div class="isum">
+      <table>
+        <tr><td>Subtotal</td><td class="r">${usd(inv.subtotal)}</td></tr>
+        <tr class="grand"><td>Total due</td><td class="r">${usd(inv.total)}</td></tr>
+      </table>
+    </div>
+
+    <div class="ifoot">
+      <div class="pay">
+        <div>
+          <div class="k">Make payable to</div>
+          <div class="v">${esc(inv.from.payTo)}</div>
+        </div>
+        <div>
+          <div class="k">How to pay</div>
+          <div class="v">${esc(inv.from.payNote)}</div>
+        </div>
+        <div>
+          <div class="k">Questions</div>
+          <div class="v"><a href="mailto:${esc(inv.from.email)}" style="color:#1257FF;text-decoration:none">${esc(inv.from.email)}</a></div>
+        </div>
+      </div>
+      <div class="thanks">
+        <span>Thank you — it's a pleasure building with you.</span>
+        <span>${esc(inv.from.legal)} · ${esc(inv.from.site)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function openInvoice(clientId, month) {
+  const m = month || INV_STATE.month;
+  view.innerHTML = loading('Opening…');
+  try {
+    const inv = await api(`/api/invoice/item?c=${encodeURIComponent(clientId)}&month=${encodeURIComponent(m)}`);
+    INV_STATE.current = inv;
+    view.innerHTML = `
+      <a class="back" href="#/invoices/${encodeURIComponent(m)}">← All invoices</a>
+      <div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <span class="conn ${inv.status === 'paid' ? 'on' : ''}">${inv.status === 'paid' ? 'Paid' : 'Open'}</span>
+        <span class="saving">Invoice #${inv.number} · ${esc(inv.monthLabel)}</span>
+        <div style="flex:1"></div>
+        <button class="tbtn" id="ivDl" type="button">Download</button>
+        <button class="tbtn" id="ivPrint" type="button">Print / Save as PDF</button>
+      </div>
+      ${invoiceHtml(inv)}`;
+    $('#ivDl').onclick = () => downloadInvoice(clientId, m);
+    $('#ivPrint').onclick = () => print();
+  } catch (e) {
+    view.innerHTML = `<div class="notice"><b>Couldn't open that invoice.</b> ${esc(e.message)}</div>`;
+  }
+}
+
+/** A standalone file — opens in any browser, nothing linked back to the hub. */
+async function downloadInvoice(clientId, month) {
+  const m = month || INV_STATE.month;
+  let inv = INV_STATE.current;
+  if (!inv || inv.clientId !== clientId || inv.month !== m) {
+    try { inv = await api(`/api/invoice/item?c=${encodeURIComponent(clientId)}&month=${encodeURIComponent(m)}`); }
+    catch (e) { return; }
+  }
+  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+  const name = `Invoice ${inv.number} — ${inv.billTo.name} — ${inv.monthLabel}`
+    .replace(/[^\w ,.—-]/g, '').replace(/\s+/g, ' ').trim();
+  const html = `<!DOCTYPE html>
+<html lang="en" data-theme="light"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(name)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>${css}
+body{background:#EEF2F8;padding:28px 18px 60px;margin:0}
+@media print{body{background:#fff;padding:0}}</style></head>
+<body>${invoiceHtml(inv)}</body></html>`;
+
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name + '.html';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 /* ================= router ================= */
 const HUB = window.HUB || { role:'admin' };
 const IS_CLIENT = HUB.role === 'client';
@@ -1898,6 +2314,11 @@ function route(){
     if (hs.startsWith('#/reports')){ setTab('reports'); showReports(); scrollTo(0,0); return; }
     state.id = HUB.id; setTab('dash'); showReport(); scrollTo(0, 0); return;
   }
+  const iv = hs.match(/^#\/invoices(?:\/(\d{4}-\d{2}))?(?:\/([\w-]+))?/);
+  if (iv){ setTab('invoices');
+    if (iv[2]) openInvoice(decodeURIComponent(iv[2]), iv[1]);
+    else showInvoices(iv[1] || null);
+    scrollTo(0,0); return; }
   const qt = hs.match(/^#\/questions(?:\/([\w-]+)\/([\w-]+))?/);
   if (qt){ setTab('questions'); qt[1] ? showThread(decodeURIComponent(qt[1]), decodeURIComponent(qt[2])) : showQuestions(); scrollTo(0,0); return; }
   const m  = hs.match(/^#\/c\/([\w-]+)/);

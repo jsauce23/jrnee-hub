@@ -140,6 +140,52 @@ plan.
 There is a quiet cap of 60 questions per client per hour. If it trips, the client still gets a
 real answer from the figures — they never see a limit or an error.
 
+
+## Invoices
+
+Admin only. **Invoices** tab → pick a month (it opens on the current one) → **Create invoice** for
+one client, or **Generate all** for every billable client at once.
+
+Numbering starts at **25305** and goes up by one. A client/month combination keeps its number
+forever: pressing Generate all a second time returns the invoices that already exist rather than
+issuing new numbers, so you can click it as often as you like.
+
+Every invoice reads "Website maintenance / development" and comes from JRNEE Technologies LLC.
+
+- **Download** saves a standalone `.html` file, named `Invoice 25305 - Client - October 2026.html`.
+  It opens in any browser, keeps the branding, works offline.
+- **Print / Save as PDF** opens the browser's print dialog for a real PDF.
+- **Mark paid** flags it in the list; the invoice then shows a Paid stamp.
+
+### Setting who gets billed
+
+A client is invoiced when its entry in `clients.json` has a `billing` block:
+
+```json
+"billing": {
+  "monthly": 4000,
+  "description": "Website maintenance / development"
+}
+```
+
+Clients without one are skipped silently — no invoice, no error. Optional extras inside `billing`:
+`detail` (overrides the line under the description), `billTo` (a different legal name on the
+invoice), `poNumber`, and `termsDays` (defaults to 15).
+
+### Optional settings in Render
+
+| Key | What it does |
+|---|---|
+| `INVOICE_START` | First invoice number. Defaults to 25305. Only used before any invoice exists |
+| `INVOICE_TERMS_DAYS` | Payment terms in days. Defaults to 15 |
+| `BILL_FROM_LINE1` | Address line under your name. Defaults to "San Antonio, TX" |
+| `BILL_FROM_EMAIL` | Defaults to hello@jrnee.ai |
+| `BILL_PAY_TO` | Who cheques are made out to. Defaults to JRNEE Technologies LLC |
+| `BILL_PAY_NOTE` | The "how to pay" line |
+
+Invoices are stored as files under `DATA_DIR`, same as reports — so the Render disk has to be
+attached or they disappear on deploy.
+
 ## Giving a client API access
 
 Only set this up for clients who ask for it.

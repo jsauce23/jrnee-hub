@@ -30,6 +30,7 @@ const LOGIN = fs.readFileSync(path.join(__dirname, 'login.html'), 'utf8');
 const DOCS = fs.readFileSync(path.join(__dirname, 'api-docs.html'), 'utf8');
 const REPORTS = require('./reports.js');
 const ASK = require('./ask.js');
+const INVOICES = require('./invoices.js');
 const SA = loadServiceAccount();
 const CLIENT_PW = loadClientPasswords();
 const API_KEYS = loadApiKeys();
@@ -892,6 +893,66 @@ http.createServer(async (req, res) => {
       if (u.searchParams.get('seen') === '1') ASK.markSeen(cid, rid);
       const c = CLIENTS.find(x => x.id === cid);
       return json(res, 200, { ...t, clientName: c ? c.name : cid });
+    }
+
+    /* ---------- invoices (admin only) ---------- */
+    if (u.pathname.startsWith('/api/invoice')) {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+
+      if (u.pathname === '/api/invoices') {
+        const month = u.searchParams.get('month') || INVOICES.currentMonth();
+        let rows;
+        try { rows = INVOICES.listMonth(CLIENTS, month); }
+        catch (e) { return json(res, 400, { error: e.message }); }
+        return json(res, 200, {
+          month,
+          monthLabel: INVOICES.monthParts(month).label,
+          currentMonth: INVOICES.currentMonth(),
+          months: INVOICES.knownMonths(),
+          nextNumber: INVOICES.peekNumber(),
+          from: INVOICES.FROM,
+          rows
+        });
+      }
+
+      if (u.pathname === '/api/invoice/item') {
+        const inv = INVOICES.getInvoice(u.searchParams.get('c'), u.searchParams.get('month'));
+        if (!inv) return json(res, 404, { error: 'That invoice has not been generated yet.' });
+        return json(res, 200, inv);
+      }
+
+      if (u.pathname === '/api/invoice/ledger') {
+        return json(res, 200, { invoices: INVOICES.listAll() });
+      }
+
+      if (req.method === 'POST') {
+        const body = JSON.parse(await readBody(req) || '{}');
+        const month = body.month || INVOICES.currentMonth();
+
+        if (u.pathname === '/api/invoice/create') {
+          const c = CLIENTS.find(x => x.id === body.client);
+          if (!c) return json(res, 404, { error: 'Unknown client.' });
+          try {
+            const r = INVOICES.build(c, month, { rebuild: !!body.rebuild });
+            return json(res, 200, { invoice: r.invoice, created: r.created });
+          } catch (e) { return json(res, 400, { error: e.message }); }
+        }
+
+        if (u.pathname === '/api/invoice/create-all') {
+          try { return json(res, 200, INVOICES.buildAll(CLIENTS, month, { rebuild: !!body.rebuild })); }
+          catch (e) { return json(res, 400, { error: e.message }); }
+        }
+
+        if (u.pathname === '/api/invoice/status') {
+          const inv = INVOICES.setStatus(body.client, month, body.status);
+          if (!inv) return json(res, 404, { error: 'Not found.' });
+          return json(res, 200, { ok: true, status: inv.status });
+        }
+
+        if (u.pathname === '/api/invoice/delete') {
+          return json(res, 200, { ok: INVOICES.deleteInvoice(body.client, month) });
+        }
+      }
     }
 
     /* ---------- reports ---------- */

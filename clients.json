@@ -8,7 +8,11 @@
     "status": "Live",
     "ga4PropertyId": "556020683",
     "gscSiteUrl": "sc-domain:marcocrawfordlaw.com",
-    "netlifySiteId": "98885a11-685d-4d2d-b2e4-34486a63ebcd"
+    "netlifySiteId": "98885a11-685d-4d2d-b2e4-34486a63ebcd",
+    "billing": {
+      "monthly": 4000,
+      "description": "Website maintenance / development"
+    }
   },
   {
     "id": "junkjuicers",
@@ -27,12 +31,31 @@
     "legal": "Staycation Fiberglass Pools",
     "domain": "staycationfiberglasspools.com",
     "initials": "SP",
-    "status": "Taking over",
+    "status": "Live",
     "ga4PropertyId": "350022936",
     "gscSiteUrl": "",
     "netlifySiteId": "",
     "ghlLocationId": "DFvqy4IoiWRyMxqjSeJu",
     "ghlSource": "",
-    "ghlTags": []
+    "ghlTags": [],
+    "billing": {
+      "monthly": 3500,
+      "description": "Website maintenance / development"
+    }
+  },
+  {
+    "id": "absolutepower",
+    "name": "Absolute Power",
+    "legal": "Absolute Power Electrical Contractors",
+    "domain": "absolute-pwr.com",
+    "initials": "AP",
+    "status": "In build",
+    "ga4PropertyId": "",
+    "gscSiteUrl": "",
+    "netlifySiteId": "",
+    "billing": {
+      "monthly": 3500,
+      "description": "Website maintenance / development"
+    }
   }
 ]
