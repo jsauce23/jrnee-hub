@@ -623,6 +623,60 @@ img,svg,video,canvas{max-width:100%;height:auto}
 .ivtot span{font-size:13.5px;color:var(--muted)}
 
 
+/* ---- line-item editor ---- */
+.ied{border:1px solid var(--line);border-radius:14px;background:var(--surface);
+  box-shadow:var(--shadow);padding:16px;margin-top:18px}
+.ied-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.ied-h h3{font-size:16px;font-weight:800;letter-spacing:-.02em;margin:0}
+.ied-h p{font-size:13px;color:var(--muted);margin:0;flex:1}
+.ied-rows{display:grid;gap:10px;margin-top:14px}
+/* Six children, so six columns: what / note / qty / amount / line total / remove. */
+.iitem{display:grid;gap:10px 12px;align-items:end;
+  grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) 58px 112px 102px 38px;
+  padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.iitem .f{min-width:0}
+.iitem label{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.iitem label i{font-style:normal;opacity:.65;letter-spacing:.06em}
+.iitem input{font:inherit;font-size:14.5px;padding:10px 11px;border:1px solid var(--line);
+  border-radius:10px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+.iitem input:focus{outline:2px solid var(--blue);outline-offset:1px}
+.iitem .r input{text-align:right;font-variant-numeric:tabular-nums}
+.iitem .lt{font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  padding:10px 0;text-align:right;white-space:nowrap}
+.iitem .x{border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  border-radius:10px;height:40px;width:36px;font-size:17px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .18s}
+.iitem .x:hover{border-color:var(--bad);color:var(--bad)}
+.ied-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;
+  padding-top:14px;border-top:1px solid var(--line)}
+.ied-foot .run{flex:1;font-size:13.5px;color:var(--muted)}
+.ied-foot .run b{font-size:19px;font-weight:800;letter-spacing:-.03em;color:var(--ink);
+  font-variant-numeric:tabular-nums;margin-left:6px}
+
+/* Six columns across needs real width, so stack early rather than squeeze. */
+@media (max-width:1000px){
+  .iitem{
+    grid-template-columns:1fr 1fr;
+    grid-template-areas:
+      "desc desc"
+      "note note"
+      "qty  rate"
+      "tot  x";
+    padding:14px;
+  }
+  .iitem .desc{grid-area:desc} .iitem .note{grid-area:note}
+  .iitem .qty{grid-area:qty}   .iitem .rate{grid-area:rate}
+  .iitem .tot{grid-area:tot;display:flex;align-items:baseline;gap:10px;
+    border-top:1px dashed var(--line);padding-top:13px}
+  .iitem .tot label{margin:0;flex:none;white-space:nowrap}
+  .iitem .lt{padding:0;font-size:17px;text-align:left}
+  .iitem .x{grid-area:x;justify-self:end;align-self:center;margin-top:11px}
+  .ied-h p{flex:1 1 100%}
+  .ied-foot .tbtn{flex:1 1 46%;justify-content:center}
+  .ied-foot .run{flex:1 1 100%;order:-1;margin-bottom:4px}
+}
+
 /* ---- invoices on a phone: stack instead of cramming one row ---- */
 @media (max-width:680px){
   .ivbar{gap:12px}
@@ -2245,7 +2299,7 @@ function invoiceHtml(inv) {
       </div>
       <div>
         <div class="k">Due</div>
-        <div class="v"><b>${esc(invDate(inv.dueOn))}</b><small>${esc(inv.termsLabel || ('Net ' + inv.termsDays))}</small></div>
+        <div class="v"><b>${esc(invDate(inv.dueOn))}</b><small>${esc(inv.termsLabel || (inv.termsDays != null ? 'Net ' + inv.termsDays : ''))}</small></div>
       </div>
       ${inv.poNumber ? `<div><div class="k">PO number</div><div class="v">${esc(inv.poNumber)}</div></div>` : ''}
     </div>
@@ -2285,27 +2339,184 @@ function invoiceHtml(inv) {
   </div>`;
 }
 
-async function openInvoice(clientId, month) {
+/* ---- editing the line items ---- */
+/** Null when the editor is closed; otherwise the rows being typed into. */
+let INV_EDIT = null;
+
+const lineTotal = l => (Number(l.qty) || 0) * (Number(String(l.rate).replace(/[^0-9.\-]/g, '')) || 0);
+
+function itemRowHtml(l, i) {
+  return `<div class="iitem" data-i="${i}">
+    <div class="f desc">
+      <label for="ln${i}d">What they paid for</label>
+      <input id="ln${i}d" data-k="description" value="${esc(l.description || '')}"
+             placeholder="e.g. Landing page build">
+    </div>
+    <div class="f note">
+      <label for="ln${i}n">Note <i>optional</i></label>
+      <input id="ln${i}n" data-k="detail" value="${esc(l.detail || '')}"
+             placeholder="Smaller line underneath — dates, scope, anything">
+    </div>
+    <div class="f qty r">
+      <label for="ln${i}q">Qty</label>
+      <input id="ln${i}q" data-k="qty" inputmode="numeric" value="${Number(l.qty) || 1}">
+    </div>
+    <div class="f rate r">
+      <label for="ln${i}r">Amount each</label>
+      <input id="ln${i}r" data-k="rate" inputmode="decimal" value="${esc(String(l.rate ?? ''))}"
+             placeholder="0.00">
+    </div>
+    <div class="f tot">
+      <label>Line total</label>
+      <div class="lt">${usd(lineTotal(l))}</div>
+    </div>
+    <button class="x" data-del type="button" aria-label="Remove this item">×</button>
+  </div>`;
+}
+
+function itemsEditorHtml() {
+  const rows = INV_EDIT.map(itemRowHtml).join('');
+  const run = INV_EDIT.reduce((t, l) => t + lineTotal(l), 0);
+  return `<div class="ied">
+    <div class="ied-h">
+      <h3>What they're paying for</h3>
+      <p>One line per thing, with its own amount. The invoice below updates as you type.</p>
+    </div>
+    <div class="ied-rows">${rows}</div>
+    <div class="ied-foot">
+      <div class="run">Invoice total<b>${usd(run)}</b></div>
+      <button class="tbtn" id="ivAdd" type="button">+ Add item</button>
+      <button class="tbtn" id="ivReset" type="button">Reset to monthly</button>
+      <button class="tbtn" id="ivCancel" type="button">Cancel</button>
+      <button class="tbtn pri" id="ivSave" type="button">Save invoice</button>
+    </div>
+  </div>`;
+}
+
+/** Reads every input back into INV_EDIT so the preview and totals stay honest. */
+function readEditor() {
+  view.querySelectorAll('.iitem').forEach(row => {
+    const i = Number(row.dataset.i);
+    if (!INV_EDIT[i]) return;
+    row.querySelectorAll('[data-k]').forEach(inp => { INV_EDIT[i][inp.dataset.k] = inp.value; });
+  });
+}
+
+/** The invoice as it would look right now, without having saved anything yet. */
+function previewWithEdits(inv) {
+  if (!INV_EDIT) return inv;
+  const lines = INV_EDIT
+    .filter(l => String(l.description || '').trim())
+    .map(l => ({
+      description: l.description,
+      detail: String(l.detail || '').trim() || null,
+      qty: Number(l.qty) || 1,
+      rate: Number(String(l.rate).replace(/[^0-9.\-]/g, '')) || 0,
+      amount: Math.round(lineTotal(l) * 100) / 100
+    }));
+  const subtotal = lines.reduce((t, l) => t + l.amount, 0);
+  return { ...inv, lines: lines.length ? lines : inv.lines, subtotal, total: subtotal };
+}
+
+async function openInvoice(clientId, month, keepEditor) {
   const m = month || INV_STATE.month;
+  if (!keepEditor) INV_EDIT = null;
   view.innerHTML = loading('Opening…');
   try {
     const inv = await api(`/api/invoice/item?c=${encodeURIComponent(clientId)}&month=${encodeURIComponent(m)}`);
     INV_STATE.current = inv;
-    view.innerHTML = `
-      <a class="back" href="#/invoices/${encodeURIComponent(m)}">← All invoices</a>
-      <div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-        <span class="conn ${inv.status === 'paid' ? 'on' : ''}">${inv.status === 'paid' ? 'Paid' : 'Open'}</span>
-        <span class="saving">Invoice #${inv.number} · ${esc(inv.monthLabel)}</span>
-        <div style="flex:1"></div>
-        <button class="tbtn" id="ivDl" type="button">Download</button>
-        <button class="tbtn" id="ivPrint" type="button">Print / Save as PDF</button>
-      </div>
-      ${invoiceHtml(inv)}`;
-    $('#ivDl').onclick = () => downloadInvoice(clientId, m);
-    $('#ivPrint').onclick = () => print();
+    drawInvoicePage(inv, clientId, m);
   } catch (e) {
     view.innerHTML = `<div class="notice"><b>Couldn't open that invoice.</b> ${esc(e.message)}</div>`;
   }
+}
+
+function drawInvoicePage(inv, clientId, m) {
+  const editing = !!INV_EDIT;
+  view.innerHTML = `
+    <a class="back" href="#/invoices/${encodeURIComponent(m)}">← All invoices</a>
+    <div id="reportBar" style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <span class="conn ${inv.status === 'paid' ? 'on' : ''}">${inv.status === 'paid' ? 'Paid' : 'Open'}</span>
+      <span class="saving">Invoice #${inv.number} · ${esc(inv.monthLabel)}</span>
+      <div style="flex:1"></div>
+      ${editing ? '' : `<button class="tbtn" id="ivEdit" type="button">Edit items</button>
+      <button class="tbtn" id="ivDl" type="button">Download</button>
+      <button class="tbtn" id="ivPrint" type="button">Print / Save as PDF</button>`}
+    </div>
+    ${editing ? itemsEditorHtml() : ''}
+    ${invoiceHtml(previewWithEdits(inv))}`;
+
+  if (!editing) {
+    $('#ivEdit').onclick = () => {
+      INV_EDIT = (inv.lines || []).map(l => ({
+        description: l.description || '', detail: l.detail || '',
+        qty: l.qty || 1, rate: l.rate != null ? String(l.rate) : ''
+      }));
+      if (!INV_EDIT.length) INV_EDIT = [{ description: '', detail: '', qty: 1, rate: '' }];
+      drawInvoicePage(inv, clientId, m);
+    };
+    $('#ivDl').onclick = () => downloadInvoice(clientId, m);
+    $('#ivPrint').onclick = () => print();
+    return;
+  }
+
+  // Typing anywhere in the editor redraws the invoice underneath.
+  view.querySelectorAll('.iitem [data-k]').forEach(inp => {
+    inp.oninput = () => {
+      const row = inp.closest('.iitem');
+      const i = Number(row.dataset.i);
+      INV_EDIT[i][inp.dataset.k] = inp.value;
+      row.querySelector('.lt').textContent = usd(lineTotal(INV_EDIT[i]));
+      const run = INV_EDIT.reduce((t, l) => t + lineTotal(l), 0);
+      view.querySelector('.ied-foot .run').innerHTML = `Invoice total<b>${usd(run)}</b>`;
+      const doc = view.querySelector('#invDoc');
+      if (doc) doc.outerHTML = invoiceHtml(previewWithEdits(inv));
+    };
+  });
+
+  view.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    readEditor();
+    const i = Number(b.closest('.iitem').dataset.i);
+    INV_EDIT.splice(i, 1);
+    if (!INV_EDIT.length) INV_EDIT = [{ description: '', detail: '', qty: 1, rate: '' }];
+    drawInvoicePage(inv, clientId, m);
+  });
+
+  $('#ivAdd').onclick = () => {
+    readEditor();
+    INV_EDIT.push({ description: '', detail: '', qty: 1, rate: '' });
+    drawInvoicePage(inv, clientId, m);
+    const rows = view.querySelectorAll('.iitem input[data-k="description"]');
+    if (rows.length) rows[rows.length - 1].focus();
+  };
+
+  $('#ivCancel').onclick = () => { INV_EDIT = null; openInvoice(clientId, m); };
+
+  $('#ivReset').onclick = async () => {
+    if (!confirm('Put this invoice back to the standing monthly amount? Anything typed here is lost. The invoice number stays the same.')) return;
+    try {
+      await post('/api/invoice/create', { client: clientId, month: m, rebuild: true });
+      INV_EDIT = null;
+      openInvoice(clientId, m);
+    } catch (e) {
+      view.insertAdjacentHTML('afterbegin', `<div class="notice"><b>Couldn't reset that.</b> ${esc(e.message)}</div>`);
+    }
+  };
+
+  $('#ivSave').onclick = async () => {
+    readEditor();
+    const btn = $('#ivSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await post('/api/invoice/lines', { client: clientId, month: m, lines: INV_EDIT });
+      INV_EDIT = null;
+      INV_STATE.current = r.invoice;
+      // The list re-fetches when he goes back, so just show the saved invoice.
+      drawInvoicePage(r.invoice, clientId, m);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Save invoice';
+      view.insertAdjacentHTML('afterbegin', `<div class="notice"><b>Couldn't save.</b> ${esc(e.message)}</div>`);
+    }
+  };
 }
 
 /** Downloads the real PDF straight from the server. */

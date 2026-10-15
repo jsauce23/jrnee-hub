@@ -198,6 +198,10 @@ function niceDate(iso) {
   return `${MONTHS[m - 1]} ${d}, ${y}`;
 }
 
+/** The small line under the due date. Older invoices only carry a day count. */
+const termsText = inv =>
+  inv.termsLabel || (inv.termsDays != null ? `Net ${inv.termsDays}` : '');
+
 /** The J mark: a blue rounded tile with the hook drawn in white. */
 function drawMark(c, x, y, size) {
   const s = size / 34;
@@ -256,7 +260,7 @@ function invoicePdf(inv) {
     { k: 'From',      lines: [[inv.from.legal, true], [inv.from.line1, false], [inv.from.email, false]] },
     { k: 'Issued',    lines: [[niceDate(inv.issuedOn), false]] },
     { k: 'Due',       lines: [[niceDate(inv.dueOn), true],
-                              [inv.termsLabel || `Net ${inv.termsDays}`, false]] }
+                              [termsText(inv), false]] }
   ];
   let metaBottom = y;
   cols.forEach((col, i) => {

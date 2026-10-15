@@ -12,7 +12,11 @@ const INV_DIR = path.join(DATA_DIR, 'invoices');
 const COUNTER = path.join(INV_DIR, '_counter.json');
 
 const FIRST_NUMBER = parseInt(process.env.INVOICE_START || '25305', 10);
-const TERMS_DAYS = parseInt(process.env.INVOICE_TERMS_DAYS || '30', 10);
+// Unset by default: the standing rule is "end of the month after the one billed",
+// not a fixed number of days. Set this only to force day-count terms everywhere.
+const TERMS_DAYS = process.env.INVOICE_TERMS_DAYS != null && process.env.INVOICE_TERMS_DAYS !== ''
+  ? parseInt(process.env.INVOICE_TERMS_DAYS, 10)
+  : null;
 
 /* ---------------- who we are ---------------- */
 const FROM = {
@@ -56,6 +60,17 @@ const prettyDate = iso => {
   return `${MONTHS[m - 1]} ${d}, ${y}`;
 };
 
+/**
+ * The last day of the month AFTER the one being billed — bill 2026-10 and this
+ * gives 2026-11-30. Rolls the year over on its own, so billing December lands
+ * on January 31 of the next year.
+ */
+function endOfFollowingMonth(ym) {
+  const [y, m] = String(ym).split('-').map(Number);
+  const d = new Date(Date.UTC(y, m + 1, 0));   // day 0 of month+2 = last day of month+1
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
 function addDays(iso, n) {
   const d = new Date(iso + 'T12:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);
@@ -76,17 +91,31 @@ function billingFor(c) {
   if (!b) return null;
   const amount = Number(b.monthly != null ? b.monthly : b.amount);
   if (!amount || amount <= 0) return null;
-  // termsDays 0 means it's due the day it's issued — the 1st of the month being
-  // billed. `terms` overrides the printed wording for anything unusual.
+  // Two ways a due date gets set:
+  //
+  //   eofm  (the standing rule) — the end of the month AFTER the one being
+  //         billed. Bill October, they have until November 30.
+  //   days  — a plain number of days from the issue date. Set `termsDays` on
+  //         the client to use it; 0 means due the day it's issued, which is
+  //         the 1st of the month billed, for anyone who pays up front.
+  //
+  // `terms` overrides the wording printed under the due date.
+  const hasDays = b.termsDays != null || TERMS_DAYS != null;
   const days = b.termsDays != null ? Number(b.termsDays) : TERMS_DAYS;
+  const mode = hasDays ? 'days' : 'eofm';
+  const auto = mode === 'eofm'
+    ? 'End of following month'
+    : (days <= 0 ? 'Due on receipt' : `Net ${days}`);
+
   return {
     amount,
     description: b.description || 'Website maintenance / development',
     detail: b.detail || null,
     poNumber: b.poNumber || null,
     billTo: b.billTo || null,
-    terms: days,
-    termsLabel: b.terms || (days <= 0 ? 'Due on receipt' : `Net ${days}`)
+    termsMode: mode,
+    terms: hasDays ? days : null,
+    termsLabel: b.terms || auto
   };
 }
 
@@ -140,20 +169,24 @@ function deleteInvoice(clientId, month) {
 }
 
 /* ---------------- building one ---------------- */
+const dueDateFor = (month, issued, bill) =>
+  bill.termsMode === 'days' ? addDays(issued, bill.terms) : endOfFollowingMonth(month);
+
 function build(client, month, opts) {
   const bill = billingFor(client);
   if (!bill) throw new Error(`${client.name} has no monthly amount set in clients.json.`);
 
   const existing = getInvoice(client.id, month);
   if (existing && !(opts && opts.rebuild)) {
-    // Terms are a standing business decision, so if they've changed in
-    // clients.json since this invoice was generated, bring it up to date.
-    // The number, issue date and paid status are its identity — those stay.
-    const label = bill.termsLabel;
-    if (existing.termsDays !== bill.terms || existing.termsLabel !== label) {
+    // Terms are a standing business decision, so if they've changed since this
+    // invoice was generated, bring it up to date. The number, issue date and
+    // paid status are its identity — those stay.
+    const due = dueDateFor(month, existing.issuedOn, bill);
+    if (existing.dueOn !== due || existing.termsLabel !== bill.termsLabel) {
+      existing.termsMode = bill.termsMode;
       existing.termsDays = bill.terms;
-      existing.termsLabel = label;
-      existing.dueOn = addDays(existing.issuedOn, bill.terms);
+      existing.termsLabel = bill.termsLabel;
+      existing.dueOn = due;
       saveInvoice(existing);
     }
     return { invoice: existing, created: false };
@@ -186,7 +219,8 @@ function build(client, month, opts) {
     periodStart: mp.first,
     periodEnd: mp.last,
     issuedOn: issued,
-    dueOn: addDays(issued, bill.terms),
+    dueOn: dueDateFor(month, issued, bill),
+    termsMode: bill.termsMode,
     termsDays: bill.terms,
     termsLabel: bill.termsLabel,
     status: existing ? existing.status : 'open',
@@ -257,6 +291,47 @@ function listAll() {
     .sort((a, b) => (b.month || '').localeCompare(a.month || '') || b.number - a.number);
 }
 
+/* ---------------- editing what's on it ---------------- */
+const cents = n => Math.round(Number(n || 0) * 100) / 100;
+
+/**
+ * Replaces the line items with whatever was typed in the hub — "what they paid
+ * for" and "how much" — and re-totals. The number, issue date, due date and
+ * paid status all stay exactly as they were.
+ *
+ * Marks the invoice `custom` so it's obvious later that it isn't just the
+ * standing monthly amount.
+ */
+function setLines(clientId, month, raw) {
+  const inv = getInvoice(clientId, month);
+  if (!inv) return null;
+
+  const lines = (Array.isArray(raw) ? raw : [])
+    .map(l => {
+      const description = String(l.description || '').trim();
+      if (!description) return null;
+      const qty = Math.max(0, Number(l.qty) || 0) || 1;
+      // A rate typed as "1,200" or "$1,200.00" should still land as 1200.
+      const rate = cents(String(l.rate == null ? '' : l.rate).replace(/[^0-9.\-]/g, ''));
+      return {
+        description,
+        detail: String(l.detail || '').trim() || null,
+        qty,
+        rate,
+        amount: cents(qty * rate)
+      };
+    })
+    .filter(Boolean);
+
+  if (!lines.length) throw new Error('An invoice needs at least one item with a description.');
+
+  inv.lines = lines;
+  inv.subtotal = cents(lines.reduce((t, l) => t + l.amount, 0));
+  inv.total = inv.subtotal;
+  inv.custom = true;
+  return saveInvoice(inv);
+}
+
 function setStatus(clientId, month, status) {
   const inv = getInvoice(clientId, month);
   if (!inv) return null;
@@ -276,6 +351,6 @@ module.exports = {
   currentMonth, monthParts, prettyDate, money, MONTHS,
   billingFor, billableClients,
   build, buildAll, getInvoice, saveInvoice, deleteInvoice,
-  listMonth, listAll, setStatus, knownMonths, peekNumber,
+  listMonth, listAll, setLines, setStatus, knownMonths, peekNumber,
   FROM, FIRST_NUMBER
 };

@@ -178,8 +178,11 @@ Clients without one are skipped silently — no invoice, no error. Optional extr
 `detail` (overrides the line under the description), `billTo` (a different legal name on the
 invoice), and `poNumber`.
 
-**Payment terms per client.** The default is Net 30. For anyone who pays up front, set the days to
-zero and give the wording you want printed:
+**Payment terms.** The standing rule is the **end of the month after the one being billed**. Bill
+October and it's due November 30. Bill December and it's due January 31. Nothing to configure —
+that's what every client gets unless you say otherwise.
+
+For anyone who pays up front, set the days to zero and give the wording you want printed:
 
 ```json
 "billing": {
@@ -190,10 +193,13 @@ zero and give the wording you want printed:
 }
 ```
 
-`termsDays` moves the due date — 0 means due the day it's issued, which is the 1st of the month
-being billed. `terms` is only the line of text under that date; leave it out and it reads
-"Net 30", "Net 15" or "Due on receipt" to match. If you change terms for a client who already has
-invoices, the next generate quietly corrects their due dates. Invoice numbers never move.
+`termsDays` switches that client to a plain day count from the issue date instead — 0 means due the
+day it's issued, which is the 1st of the month billed. Any other number gives you Net 15, Net 45 and
+so on. `terms` is only the line of text under the due date; leave it out and it reads "Due end of
+following month", "Net 15" or "Due on receipt" to match.
+
+If you change terms for a client who already has invoices, the next generate quietly corrects their
+due dates. Invoice numbers never move.
 
 ### Billing something that isn't a website client
 
@@ -206,7 +212,7 @@ bill but don't run a website for doesn't sit there showing "not connected" every
 | Key | What it does |
 |---|---|
 | `INVOICE_START` | First invoice number. Defaults to 25305. Only used before any invoice exists |
-| `INVOICE_TERMS_DAYS` | Payment terms in days. Defaults to 30 |
+| `INVOICE_TERMS_DAYS` | Forces day-count terms for everyone, overriding the end-of-following-month rule. Leave unset |
 | `BILL_FROM_LINE1` | Address line under your name. Defaults to "San Antonio, TX" |
 | `BILL_FROM_EMAIL` | Defaults to hello@jrnee.ai |
 | `BILL_PAY_TO` | Who cheques are made out to. Defaults to JRNEE Technologies LLC |

@@ -964,6 +964,14 @@ http.createServer(async (req, res) => {
           catch (e) { return json(res, 400, { error: e.message }); }
         }
 
+        if (u.pathname === '/api/invoice/lines') {
+          try {
+            const inv = INVOICES.setLines(body.client, month, body.lines);
+            if (!inv) return json(res, 404, { error: 'That invoice has not been generated yet.' });
+            return json(res, 200, { invoice: inv });
+          } catch (e) { return json(res, 400, { error: e.message }); }
+        }
+
         if (u.pathname === '/api/invoice/status') {
           const inv = INVOICES.setStatus(body.client, month, body.status);
           if (!inv) return json(res, 404, { error: 'Not found.' });
