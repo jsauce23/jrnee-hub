@@ -12,7 +12,7 @@ const INV_DIR = path.join(DATA_DIR, 'invoices');
 const COUNTER = path.join(INV_DIR, '_counter.json');
 
 const FIRST_NUMBER = parseInt(process.env.INVOICE_START || '25305', 10);
-const TERMS_DAYS = parseInt(process.env.INVOICE_TERMS_DAYS || '15', 10);
+const TERMS_DAYS = parseInt(process.env.INVOICE_TERMS_DAYS || '30', 10);
 
 /* ---------------- who we are ---------------- */
 const FROM = {

@@ -170,14 +170,14 @@ A client is invoiced when its entry in `clients.json` has a `billing` block:
 
 Clients without one are skipped silently — no invoice, no error. Optional extras inside `billing`:
 `detail` (overrides the line under the description), `billTo` (a different legal name on the
-invoice), `poNumber`, and `termsDays` (defaults to 15).
+invoice), `poNumber`, and `termsDays` (defaults to 30).
 
 ### Optional settings in Render
 
 | Key | What it does |
 |---|---|
 | `INVOICE_START` | First invoice number. Defaults to 25305. Only used before any invoice exists |
-| `INVOICE_TERMS_DAYS` | Payment terms in days. Defaults to 15 |
+| `INVOICE_TERMS_DAYS` | Payment terms in days. Defaults to 30 |
 | `BILL_FROM_LINE1` | Address line under your name. Defaults to "San Antonio, TX" |
 | `BILL_FROM_EMAIL` | Defaults to hello@jrnee.ai |
 | `BILL_PAY_TO` | Who cheques are made out to. Defaults to JRNEE Technologies LLC |
