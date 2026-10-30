@@ -180,6 +180,13 @@ td.pth{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--s
 .lead .lc{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--slate);margin-top:4px}
 .lead .lc a{color:var(--blue);font-weight:600}
 .lead p{font-size:14px;margin-top:8px;white-space:pre-wrap;word-break:break-word}
+.lead .ltopic{font-weight:700;color:var(--ink)}
+.lead.done{opacity:.56}
+.lead .jdone{margin-top:10px}
+.lbadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;
+  padding:0 5px;margin-left:7px;border-radius:9px;background:var(--green,#10B981);color:#fff;
+  font-size:11px;font-weight:800;line-height:1}
+h2.sect{margin:26px 0 10px;font-size:15px;letter-spacing:-.02em;color:var(--muted)}
 .tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:20px;background:var(--blue-soft);color:var(--blue)}
 
 .foot{margin-top:34px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
@@ -890,6 +897,7 @@ img,svg,video,canvas{max-width:100%;height:auto}
     </a>
     <nav class="tabs admin" aria-label="Admin">
       <a href="#/" data-tab="dash"><span class="lg">My </span>Dashboard</a>
+      <a href="#/leads" data-tab="leads">Leads<span class="lbadge" id="leadBadge" hidden></span></a>
       <a href="#/clients" data-tab="clients">Clients</a>
       <a href="#/reports" data-tab="reports">Reports</a>
       <a href="#/questions" data-tab="questions">Questions</a>
@@ -948,8 +956,8 @@ const CHANNELS = {
 };
 const BAR_COLORS = ['var(--blue)','var(--cyan)','var(--violet)','var(--green)','var(--amber)','var(--rose)'];
 
-async function api(p){
-  const r = await fetch(p, { credentials:'same-origin' });
+async function api(p, opts){
+  const r = await fetch(p, Object.assign({ credentials:'same-origin' }, opts || {}));
   if (r.status === 401) { location.href = '/'; throw new Error('signed out'); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || 'Request failed (' + r.status + ')');
@@ -1001,6 +1009,70 @@ async function showList(fresh){
     ${warn}
     <div class="grid">${cards || '<div class="empty"><b>No clients yet</b>Add one to clients.json.</div>'}</div>`;
   $('#refreshList').onclick = () => showList(true);
+}
+
+/* ================= leads from our own site ================= */
+/* These come from jrnee.ai's forms, which post to /lead on this server.
+   Separate from client leads, which are pulled from Netlify or GHL. */
+async function showLeads(){
+  document.body.classList.remove('present');
+  $('#presentBtn').hidden = true;
+  view.innerHTML = loading('Loading leads…');
+  let d;
+  try { d = await api('/api/leads'); }
+  catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load leads.</b> ${esc(e.message)}</div>`; return; }
+
+  const all = d.leads || [];
+  const open = all.filter(l => l.status !== 'done');
+  setLeadBadge(open.length);
+
+  if (!all.length){
+    view.innerHTML = `<div class="head"><h1>Leads</h1></div>
+      <div class="empty"><b>No leads yet</b>Anyone who fills in the form on jrnee.ai lands here.</div>`;
+    return;
+  }
+
+  const row = l => `<div class="lead jl${l.status==='done'?' done':''}" data-id="${esc(l.id)}">
+    <div class="lh">
+      <b>${esc(l.name || 'No name given')}</b>
+      <span>${esc(ago(l.when))}${l.form?` · <span class="tag">${esc(l.form)}</span>`:''}</span>
+    </div>
+    <div class="lc">
+      ${l.phone?`<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>`:''}
+      ${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:''}
+    </div>
+    ${l.topic?`<p class="ltopic">${esc(l.topic)}</p>`:''}
+    ${l.details?`<p>${esc(l.details)}</p>`:''}
+    <button class="tbtn jdone" type="button" data-id="${esc(l.id)}" data-to="${l.status==='done'?'new':'done'}">
+      ${l.status==='done'?'Mark as new':'Mark as handled'}
+    </button>
+  </div>`;
+
+  view.innerHTML = `<div class="head">
+      <h1>Leads</h1>
+      <p class="sub">${open.length} to action${all.length-open.length?` · ${all.length-open.length} handled`:''}</p>
+    </div>
+    <div class="leads">${open.map(row).join('')}</div>
+    ${all.length-open.length ? `<h2 class="sect">Handled</h2>
+      <div class="leads">${all.filter(l=>l.status==='done').map(row).join('')}</div>` : ''}`;
+
+  view.querySelectorAll('.jdone').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try{
+      await api('/api/leads', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id: b.dataset.id, status: b.dataset.to }) });
+      showLeads();
+    }catch(e){ b.disabled=false; alert("Couldn't update that lead: " + e.message); }
+  });
+}
+function setLeadBadge(n){
+  const el = $('#leadBadge'); if(!el) return;
+  el.textContent = n; el.hidden = !n;
+}
+// so the tab shows a count without opening it
+async function refreshLeadBadge(){
+  try { const d = await api('/api/leads'); setLeadBadge((d.leads||[]).filter(l=>l.status!=='done').length); }
+  catch(e){}
 }
 
 /* ================= my dashboard (admin only) ================= */
@@ -2557,6 +2629,7 @@ function route(){
   if (qt){ setTab('questions'); qt[1] ? showThread(decodeURIComponent(qt[1]), decodeURIComponent(qt[2])) : showQuestions(); scrollTo(0,0); return; }
   const m  = hs.match(/^#\/c\/([\w-]+)/);
   const rp = hs.match(/^#\/reports(?:\/([\w-]+))?(?:\/([\w-]+))?/);
+  if (hs === '#/leads'){ setTab('leads'); showLeads(); scrollTo(0,0); return; }
   const tab = rp ? 'reports' : (m || hs === '#/clients') ? 'clients' : 'dash';
   setTab(tab);
   if (rp){
@@ -2574,6 +2647,8 @@ function route(){
 state.days = [7,28,90].includes(+store('hub-days')) ? +store('hub-days') : 28;
 function setTab(t){ document.querySelectorAll('.tabs a').forEach(a=>a.classList.toggle('on', a.dataset.tab===t)); }
 addEventListener('hashchange', route);
+// so a new lead is visible on the tab without opening it
+if (!IS_CLIENT) refreshLeadBadge();
 
 /* present mode */
 $('#presentBtn').onclick = () => { document.body.classList.add('present'); scrollTo(0,0); };

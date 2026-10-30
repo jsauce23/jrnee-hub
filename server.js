@@ -35,6 +35,11 @@ const REPORTS = require('./reports.js');
 const ASK = require('./ask.js');
 const INVOICES = require('./invoices.js');
 const INVOICE_PDF = require('./invoice-pdf.js');
+const LEADS = require('./leads.js');
+
+// jrnee.ai is a static site on a different origin, so its forms post here.
+const LEAD_ORIGINS = (process.env.LEAD_ORIGINS || 'https://jrnee.ai,https://www.jrnee.ai')
+  .split(',').map(s => s.trim()).filter(Boolean);
 const SA = loadServiceAccount();
 const CLIENT_PW = loadClientPasswords();
 const API_KEYS = loadApiKeys();
@@ -783,6 +788,62 @@ http.createServer(async (req, res) => {
     if (u.pathname === '/health') return send(res, 200, 'text/plain', 'ok');
     if (u.pathname === '/v1' || u.pathname.startsWith('/v1/')) return apiV1(req, res, u);
 
+    /* ---- public lead capture, before the login gate ---- */
+    if (u.pathname === '/lead') {
+      const origin = req.headers.origin || '';
+      if (LEAD_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+      }
+      if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With');
+        res.setHeader('Access-Control-Max-Age', '86400');
+        return send(res, 204, 'text/plain', '');
+      }
+      if (req.method !== 'POST') return json(res, 405, { error: 'Use POST.' });
+
+      // Browsers that ran the JS get JSON back; a no-JS form post gets sent
+      // back to the page with ?sent=1 so the person still sees a thank-you.
+      const wantsJson = req.headers['x-requested-with'] === 'fetch';
+      const back = (LEAD_ORIGINS[0] || '') + '/consult/?sent=1';
+      const fail = (code, msg) => wantsJson
+        ? json(res, code, { ok: false, error: msg })
+        : (res.writeHead(303, { Location: (LEAD_ORIGINS[0] || '') + '/consult/?error=1' }), res.end());
+
+      const a = attempts('lead:' + ip);
+      if (a.n >= 12) return fail(429, 'Too many submissions from this connection. Try again shortly.');
+      a.n++;
+
+      let fields;
+      try {
+        const raw = await readBody(req, 20000);
+        fields = Object.fromEntries(new URLSearchParams(raw));
+      } catch (e) { return fail(400, 'That submission was too large.'); }
+
+      // Honeypot: real people never fill this in.
+      if ((fields['website-url'] || '').trim()) {
+        if (wantsJson) return json(res, 200, { ok: true });      // let the bot think it worked
+        res.writeHead(303, { Location: back }); return res.end();
+      }
+
+      const lead = LEADS.normalise(fields);
+      const problem = LEADS.problemWith(lead);
+      if (problem) return fail(400, problem);
+
+      let saved;
+      try {
+        saved = LEADS.save(lead, { ip, ua: req.headers['user-agent'] || '', ref: req.headers.referer || '' });
+      } catch (e) {
+        console.error('LEAD SAVE FAILED', e);           // never silently swallow a lead
+        return fail(500, "We couldn't save that. Please call or email us instead.");
+      }
+      console.log('LEAD', saved.id, saved.name, saved.email || saved.phone, '|', saved.topic);
+      if (wantsJson) return json(res, 200, { ok: true, id: saved.id });
+      res.writeHead(303, { Location: back });
+      return res.end();
+    }
+
     if (u.pathname === '/login' && req.method === 'POST') {
       const a = attempts(ip);
       if (a.n >= 10) return html(res, 429, loginPage('Too many attempts. Try again in 15 minutes.'));
@@ -818,6 +879,17 @@ http.createServer(async (req, res) => {
       const own = ownId && CLIENTS.find(c => c.id === ownId);
       const hub = isAdmin ? { role: 'admin' } : { role: 'client', id: ownId, name: own ? own.name : '' };
       return html(res, 200, APP.replace('__HUB__', JSON.stringify(hub).replace(/</g, '\u003c')));
+    }
+
+    if (u.pathname === '/api/leads') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      if (req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const rec = LEADS.setStatus(String(b.id || ''), String(b.status || ''));
+        if (!rec) return json(res, 404, { error: 'No lead with that id.' });
+        return json(res, 200, { ok: true, lead: rec });
+      }
+      return json(res, 200, { leads: LEADS.list(200) });
     }
 
     if (u.pathname === '/api/clients') {
