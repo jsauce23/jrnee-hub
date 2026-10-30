@@ -180,6 +180,7 @@ td.pth{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--s
 .lead .lc{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--slate);margin-top:4px}
 .lead .lc a{color:var(--blue);font-weight:600}
 .lead p{font-size:14px;margin-top:8px;white-space:pre-wrap;word-break:break-word}
+.lead .lco{font-weight:600;color:var(--muted)}
 .lead .ltopic{font-weight:700;color:var(--ink)}
 .lead.done{opacity:.56}
 .lead .jdone{margin-top:10px}
@@ -1034,7 +1035,7 @@ async function showLeads(){
 
   const row = l => `<div class="lead jl${l.status==='done'?' done':''}" data-id="${esc(l.id)}">
     <div class="lh">
-      <b>${esc(l.name || 'No name given')}</b>
+      <b>${esc(l.name || 'No name given')}${l.company?` <span class="lco">· ${esc(l.company)}</span>`:''}</b>
       <span>${esc(ago(l.when))}${l.form?` · <span class="tag">${esc(l.form)}</span>`:''}</span>
     </div>
     <div class="lc">
