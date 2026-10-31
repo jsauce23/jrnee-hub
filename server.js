@@ -38,6 +38,14 @@ const INVOICE_PDF = require('./invoice-pdf.js');
 const LEADS = require('./leads.js');
 
 // jrnee.ai is a static site on a different origin, so its forms post here.
+const ASSETS = {
+  '/manifest.webmanifest':  { file: 'manifest.webmanifest',  type: 'application/manifest+json' },
+  '/icon-192.png':          { file: 'icon-192.png',          type: 'image/png' },
+  '/icon-512.png':          { file: 'icon-512.png',          type: 'image/png' },
+  '/icon-maskable-512.png': { file: 'icon-maskable-512.png', type: 'image/png' },
+  '/apple-touch-icon.png':  { file: 'apple-touch-icon.png',  type: 'image/png' }
+};
+
 const LEAD_ORIGINS = (process.env.LEAD_ORIGINS || 'https://jrnee.ai,https://www.jrnee.ai')
   .split(',').map(s => s.trim()).filter(Boolean);
 const SA = loadServiceAccount();
@@ -786,6 +794,17 @@ http.createServer(async (req, res) => {
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'x';
   try {
     if (u.pathname === '/health') return send(res, 200, 'text/plain', 'ok');
+    /* ---- installable-app files: reachable logged out, since the login
+           screen is the first thing a phone sees ---- */
+    if (ASSETS[u.pathname]) {
+      const a = ASSETS[u.pathname];
+      let buf;
+      try { buf = fs.readFileSync(path.join(__dirname, a.file)); }
+      catch (e) { return send(res, 404, 'text/plain', 'Not found'); }
+      res.writeHead(200, { 'Content-Type': a.type, 'Cache-Control': 'public, max-age=604800' });
+      return res.end(buf);
+    }
+
     if (u.pathname === '/v1' || u.pathname.startsWith('/v1/')) return apiV1(req, res, u);
 
     /* ---- public lead capture, before the login gate ---- */

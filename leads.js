@@ -16,17 +16,22 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const LEAD_DIR = path.join(DATA_DIR, 'leads');
 
 const clean = (s, max) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, max);
+// Keeps line breaks — a typed message or a chat log is unreadable collapsed.
+const lines = (s, max) => String(s == null ? '' : s)
+  .replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ')
+  .replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
 
 // What the consult form sends, plus the field names other forms tend to use.
 function normalise(d) {
   const topic = clean(d.need || d.subject || d.topic || d.service || d.reason, 160);
-  const body  = clean(d.details || d.message || d.comments || d.notes, 4000);
+  const body  = lines(d.details || d.message || d.comments || d.notes, 4000);
   return {
     name:    clean(d.name || [d.first_name, d.last_name].filter(Boolean).join(' '), 120),
     email:   clean(d.email, 160).toLowerCase(),
     phone:   clean(d.phone || d.telephone || d.tel || d.mobile, 40),
     company: clean(d.company || d.business, 160),
     topic, details: body,
+    transcript: lines(d.transcript, 6000),
     form:    clean(d.form || d['form-name'] || 'consult', 60),
     page:    clean(d.page || '', 300)
   };

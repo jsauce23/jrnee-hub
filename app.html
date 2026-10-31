@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>JRNEE Website Hub</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<meta name="theme-color" content="#1257FF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JRNEE Hub">
+<meta name="application-name" content="JRNEE Hub">
+
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <script>(function(){var t='light';try{if(localStorage.getItem('hub-theme')==='dark')t='dark'}catch(e){}document.documentElement.setAttribute('data-theme',t)})()</script>
@@ -132,6 +142,51 @@ h2{font-size:18px;font-weight:800;letter-spacing:-.03em}
   color:var(--good);background:var(--good-bg);border-radius:20px;padding:4px 9px}
 .live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
 
+
+/* ---- new leads, the first thing on the admin screen ---- */
+.nlwrap{margin-top:20px;border-radius:20px;padding:20px;position:relative;overflow:hidden;
+  background:linear-gradient(140deg,#071029 0%,#10224f 52%,#0a1838 100%);color:#fff;
+  box-shadow:0 20px 44px -26px rgba(8,22,60,.75)}
+.nlwrap::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
+  background:linear-gradient(90deg,var(--cyan),var(--blue),var(--violet),var(--rose))}
+.nlwrap.calm{background:var(--surface);color:var(--ink);border:1px solid var(--line);
+  box-shadow:var(--shadow)}
+.nlwrap.calm::before{opacity:.5}
+.nl-h{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.nl-h h2{font-size:19px;letter-spacing:-.03em;font-weight:800;margin:0}
+.nl-h p{font-size:13.5px;margin-top:3px;color:rgba(255,255,255,.62)}
+.nlwrap.calm .nl-h p{color:var(--muted)}
+.nl-count{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;
+  padding:0 9px;border-radius:9px;background:var(--green);color:#fff;font-weight:800;font-size:16px;
+  margin-bottom:8px}
+.nl-all{font-size:13px;font-weight:700;color:#9FC0FF;white-space:nowrap}
+.nlwrap.calm .nl-all{color:var(--blue)}
+.nl-list{display:grid;gap:10px;margin-top:16px}
+.nl{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:14px;
+  padding:14px 15px;transition:opacity .25s,transform .25s}
+.nl.gone{opacity:0;transform:translateX(14px)}
+.nl-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.nl-who b{font-weight:800;letter-spacing:-.02em;font-size:16px}
+.nl-co{display:block;font-size:12.5px;color:rgba(255,255,255,.6);margin-top:1px}
+.nl-when{font-size:12px;color:rgba(255,255,255,.55);white-space:nowrap}
+.nl-topic{margin-top:8px;font-weight:700;font-size:14.5px;color:#CFE0FF}
+.nl-detail{margin-top:5px;font-size:13.5px;line-height:1.5;color:rgba(255,255,255,.72);
+  white-space:pre-wrap;word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nl-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+.nl-btn{display:inline-flex;align-items:center;gap:7px;border-radius:10px;padding:10px 14px;
+  font-size:13.5px;font-weight:800;cursor:pointer;border:1px solid transparent;font-family:var(--sans)}
+.nl-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.nl-btn.call{background:var(--green);color:#fff}
+.nl-btn.mail{background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.22)}
+.nl-btn.done{background:transparent;color:rgba(255,255,255,.72);border-color:rgba(255,255,255,.22)}
+.nl-btn.done:hover{color:#fff;border-color:rgba(255,255,255,.5)}
+.nl-more{display:block;margin-top:12px;font-size:13.5px;font-weight:700;color:#9FC0FF}
+@media (max-width:560px){
+  .nl-act{display:grid;grid-template-columns:1fr}
+  .nl-btn{justify-content:center}
+}
 .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:22px}
 @media (min-width:900px){.kpis{grid-template-columns:repeat(4,1fr)}}
 .kpi{padding:18px;position:relative;overflow:hidden}
@@ -180,6 +235,15 @@ td.pth{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--s
 .lead .lc{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--slate);margin-top:4px}
 .lead .lc a{color:var(--blue);font-weight:600}
 .lead p{font-size:14px;margin-top:8px;white-space:pre-wrap;word-break:break-word}
+.lead .ltr{margin-top:9px}
+.lead .ltr summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--blue);
+  list-style:none;width:fit-content}
+.lead .ltr summary::-webkit-details-marker{display:none}
+.lead .ltr summary::after{content:" ↓"}
+.lead .ltr[open] summary::after{content:" ↑"}
+.lead .ltr pre{margin-top:8px;white-space:pre-wrap;word-break:break-word;font-family:var(--sans);
+  font-size:13px;line-height:1.55;color:var(--slate);background:var(--bg);
+  border:1px solid var(--line);border-radius:10px;padding:11px 12px;max-height:260px;overflow:auto}
 .lead .lco{font-weight:600;color:var(--muted)}
 .lead .ltopic{font-weight:700;color:var(--ink)}
 .lead.done{opacity:.56}
@@ -194,11 +258,11 @@ h2.sect{margin:26px 0 10px;font-size:15px;letter-spacing:-.02em;color:var(--mute
 
 /* ---- admin tabs ---- */
 .tabs{display:flex;gap:4px;margin-left:14px}
-.tabs a{font-size:13.5px;font-weight:700;padding:8px 12px;border-radius:10px;color:var(--slate);white-space:nowrap}
+.tabs a{font-size:13.5px;font-weight:700;padding:8px 12px;border-radius:10px;color:var(--slate);white-space:nowrap;flex:none;display:inline-flex;align-items:center}
 .tabs a:hover{color:var(--ink)}
 .tabs a.on{background:var(--blue-soft);color:var(--blue)}
 /* the tab strip scrolls on its own rather than squashing into the buttons */
-.tabs{display:flex;gap:4px;margin-left:14px;min-width:0;flex:1 1 auto;
+.tabs{display:flex;gap:6px;margin-left:14px;min-width:0;flex:1 1 auto;
   overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tabs{-webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 14px),transparent 100%);
@@ -1044,6 +1108,7 @@ async function showLeads(){
     </div>
     ${l.topic?`<p class="ltopic">${esc(l.topic)}</p>`:''}
     ${l.details?`<p>${esc(l.details)}</p>`:''}
+    ${l.transcript?`<details class="ltr"><summary>What they asked the assistant</summary><pre>${esc(l.transcript)}</pre></details>`:''}
     <button class="tbtn jdone" type="button" data-id="${esc(l.id)}" data-to="${l.status==='done'?'new':'done'}">
       ${l.status==='done'?'Mark as new':'Mark as handled'}
     </button>
@@ -1090,9 +1155,59 @@ async function showDashboard(fresh){
   document.body.classList.remove('present');
   $('#presentBtn').hidden = true;
   view.innerHTML = loading('Pulling live numbers across every client…');
-  let d;
-  try { d = await api('/api/dashboard' + (fresh ? '?refresh=1' : '')); }
+  let d, mine = { leads: [] };
+  try {
+    // Our own leads matter more than anything else on this screen, so they
+    // are fetched alongside and never blocked by a slow client pull.
+    const [dash, ours] = await Promise.all([
+      api('/api/dashboard' + (fresh ? '?refresh=1' : '')),
+      api('/api/leads').catch(() => ({ leads: [] }))
+    ]);
+    d = dash; mine = ours;
+  }
   catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load your dashboard.</b> ${esc(e.message)}</div>`; return; }
+
+
+  /* Our own new leads, top of the screen, before anything else. */
+  const fresh_ = (mine.leads || []).filter(l => l.status !== 'done');
+  setLeadBadge(fresh_.length);
+  const myCard = l => `<article class="nl" data-id="${esc(l.id)}">
+      <div class="nl-top">
+        <div class="nl-who">
+          <b>${esc(l.name || 'No name given')}</b>
+          ${l.company ? `<span class="nl-co">${esc(l.company)}</span>` : ''}
+        </div>
+        <span class="nl-when">${esc(ago(l.when))}</span>
+      </div>
+      ${l.topic ? `<p class="nl-topic">${esc(l.topic)}</p>` : ''}
+      ${l.details ? `<p class="nl-detail">${esc(l.details)}</p>` : ''}
+      <div class="nl-act">
+        ${l.phone ? `<a class="nl-btn call" href="tel:${esc(l.phone)}">
+          <svg viewBox="0 0 20 20"><path d="M4.5 3.5h3l1.2 3-1.6 1.3a9 9 0 0 0 4.1 4.1l1.3-1.6 3 1.2v3a1 1 0 0 1-1.1 1A12.5 12.5 0 0 1 3.5 4.6a1 1 0 0 1 1-1.1z"/></svg>
+          Call ${esc(l.phone)}</a>` : ''}
+        ${l.email ? `<a class="nl-btn mail" href="mailto:${esc(l.email)}">
+          <svg viewBox="0 0 20 20"><rect x="2.5" y="4.5" width="15" height="11" rx="2"/><path d="M3 6l7 5 7-5"/></svg>
+          Email</a>` : ''}
+        <button class="nl-btn done" type="button" data-id="${esc(l.id)}">Mark handled</button>
+      </div>
+    </article>`;
+
+  const myLeads = fresh_.length
+    ? `<section class="nlwrap">
+         <div class="nl-h">
+           <div><span class="nl-count">${fresh_.length}</span>
+             <h2>New lead${fresh_.length>1?'s':''} for you</h2>
+             <p>From jrnee.ai &mdash; nobody has picked ${fresh_.length>1?'these':'this'} up yet</p></div>
+           <a class="nl-all" href="#/leads">All leads &rarr;</a>
+         </div>
+         <div class="nl-list">${fresh_.slice(0,5).map(myCard).join('')}</div>
+         ${fresh_.length>5?`<a class="nl-more" href="#/leads">${fresh_.length-5} more waiting &rarr;</a>`:''}
+       </section>`
+    : `<section class="nlwrap calm">
+         <div class="nl-h"><div><h2>No new leads</h2>
+           <p>Anyone who fills in a form on jrnee.ai shows up here first.</p></div>
+           <a class="nl-all" href="#/leads">All leads &rarr;</a></div>
+       </section>`;
 
   const t = d.totals, cfg = d.config || {};
   let warn = '';
@@ -1135,6 +1250,7 @@ async function showDashboard(fresh){
       <button class="tbtn" id="refreshDash" type="button"><svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-2-4.5M16 4v3.5h-3.5"/></svg><span>Refresh</span></button>
     </div>
     <div class="stamp"><span class="live">Live data</span>Last 28 days · updated ${esc(ago(d.generated))}</div>
+    ${myLeads}
     ${warn}
     ${kpis}
     <section class="sec card"><div class="sec-h"><h2>Alerts</h2><p>Newest leads and problems first</p></div>${alerts}</section>
@@ -1142,6 +1258,16 @@ async function showDashboard(fresh){
     <section class="sec card"><div class="sec-h"><h2>Client setup</h2><p>What each client still needs connected</p></div>${setup}</section>`;
 
   $('#refreshDash').onclick = () => showDashboard(true);
+  view.querySelectorAll('.nl-btn.done').forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = 'Saving…';
+    try{
+      await api('/api/leads', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id: b.dataset.id, status:'done' }) });
+      const card = b.closest('.nl');
+      card.classList.add('gone');
+      setTimeout(() => showDashboard(), 260);
+    }catch(e){ b.disabled=false; b.textContent='Mark handled'; alert("Couldn't update: "+e.message); }
+  });
   const ch = $('#chips');
   if (ch) ch.querySelectorAll('button').forEach(b => b.onclick = () => {
     dashFilter = b.dataset.f;
