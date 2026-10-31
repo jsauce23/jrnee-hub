@@ -22,10 +22,12 @@ const TERMS_DAYS = process.env.INVOICE_TERMS_DAYS != null && process.env.INVOICE
 const FROM = {
   legal:  process.env.BILL_FROM_NAME  || 'JRNEE Technologies LLC',
   brand:  'JRNEE.ai',
-  email:  process.env.BILL_FROM_EMAIL || 'hello@jrnee.ai',
+  // No default email: hello@jrnee.ai is not a real mailbox and was printing
+  // on every invoice. Set BILL_FROM_EMAIL when there is a real one.
+  email:  process.env.BILL_FROM_EMAIL || '',
   site:   'jrnee.ai',
   line1:  process.env.BILL_FROM_LINE1 || 'San Antonio, TX',
-  phone:  process.env.BILL_FROM_PHONE || '',
+  phone:  process.env.BILL_FROM_PHONE || '(210) 790-4017',
   payTo:  process.env.BILL_PAY_TO     || 'JRNEE Technologies LLC',
   payNote: process.env.BILL_PAY_NOTE  || 'Check, ACH or card. Reply to this invoice for payment details.'
 };

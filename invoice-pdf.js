@@ -257,7 +257,7 @@ function invoicePdf(inv) {
   const starts = widths.reduce((a, w, i) => (a.push(i ? a[i-1] + widths[i-1] : M), a), []);
   const cols = [
     { k: 'Billed to', lines: [[inv.billTo.name, true], [inv.billTo.domain, false]] },
-    { k: 'From',      lines: [[inv.from.legal, true], [inv.from.line1, false], [inv.from.email, false]] },
+    { k: 'From',      lines: [[inv.from.legal, true], [inv.from.line1, false], [inv.from.email || inv.from.phone || '', false]] },
     { k: 'Issued',    lines: [[niceDate(inv.issuedOn), false]] },
     { k: 'Due',       lines: [[niceDate(inv.dueOn), true],
                               [termsText(inv), false]] }
@@ -354,7 +354,7 @@ function invoicePdf(inv) {
   const payCols = [
     ['Make payable to', inv.from.payTo],
     ['How to pay', inv.from.payNote],
-    ['Questions', inv.from.email]
+    ['Questions', inv.from.email || inv.from.phone || '']
   ];
   payCols.forEach(([k, v], i) => {
     const x = M + 16 + i * ((RIGHT - M - 32) / 3);
