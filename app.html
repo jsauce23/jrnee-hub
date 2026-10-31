@@ -143,6 +143,15 @@ h2{font-size:18px;font-weight:800;letter-spacing:-.03em}
 .live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
 
 
+
+/* quiet hand-off from My Dashboard to the client side */
+.xover{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin-top:18px;padding:18px 20px;border-radius:16px;border:1px solid var(--line);
+  background:var(--surface);box-shadow:var(--shadow)}
+.xover b{display:block;font-weight:800;letter-spacing:-.02em;font-size:15.5px}
+.xover span{font-size:13.5px;color:var(--muted)}
+.xover .xgo{font-weight:800;color:var(--blue);white-space:nowrap;font-size:14px}
+.xover:hover{border-color:#B9CDF6}
 /* ---- new leads, the first thing on the admin screen ---- */
 .nlwrap{margin-top:20px;border-radius:20px;padding:20px;position:relative;overflow:hidden;
   background:linear-gradient(140deg,#071029 0%,#10224f 52%,#0a1838 100%);color:#fff;
@@ -961,7 +970,7 @@ img,svg,video,canvas{max-width:100%;height:auto}
       <b>JRNEE<i>.ai</i></b><small>Website Hub</small>
     </a>
     <nav class="tabs admin" aria-label="Admin">
-      <a href="#/" data-tab="dash"><span class="lg">My </span>Dashboard</a>
+      <a href="#/" data-tab="dash"><span class="lg">My&nbsp;</span>Dashboard</a>
       <a href="#/leads" data-tab="leads">Leads<span class="lbadge" id="leadBadge" hidden></span></a>
       <a href="#/clients" data-tab="clients">Clients</a>
       <a href="#/reports" data-tab="reports">Reports</a>
@@ -1035,8 +1044,14 @@ async function showList(fresh){
   document.body.classList.remove('present');
   $('#presentBtn').hidden = true;
   view.innerHTML = loading('Pulling live numbers for every client…');
-  let data;
-  try { data = await api('/api/clients' + (fresh ? '?refresh=1' : '')); }
+  let data, agg = null;
+  try {
+    const [cs, dash] = await Promise.all([
+      api('/api/clients' + (fresh ? '?refresh=1' : '')),
+      api('/api/dashboard' + (fresh ? '?refresh=1' : '')).catch(() => null)
+    ]);
+    data = cs; agg = dash;
+  }
   catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load clients.</b> ${esc(e.message)}</div>`; return; }
 
   const cfg = data.config || {};
@@ -1066,14 +1081,65 @@ async function showList(fresh){
     </a>`;
   }).join('');
 
+  /* The roll-up that used to sit on My Dashboard. It belongs with the
+     clients it describes, not on JRNEE's own screen. */
+  let kpis = '', alerts = '', inbox = '', setup = '';
+  if (agg) {
+    const t = agg.totals || {};
+    const kpi = (label, value, d_, note, color) => `<div class="kpi card" style="--kc:${color}"><small>${label}</small><div class="v">${value}${d_ || ''}</div><div class="n">${note}</div></div>`;
+    kpis = `<div class="kpis">
+      ${kpi('Visitors, all clients', fmt(t.visitors), delta(t.visitors, t.prevVisitors), t.visitors == null ? 'No Analytics connected yet' : 'Last 28 days vs the 28 before', 'var(--blue)')}
+      ${kpi('Leads, all clients', fmt(t.leads), delta(t.leads, t.prevLeads), t.leads == null ? 'No lead source connected yet' : 'Form submissions, last 28 days', 'var(--green)')}
+      ${kpi('Clients', fmt(t.clients), '', 'In clients.json', 'var(--violet)')}
+      ${kpi('Need attention', fmt(t.attention), '', t.attention ? 'New leads, drops or failures' : 'All clear', t.attention ? 'var(--amber)' : 'var(--cyan)')}
+    </div>`;
+
+    alerts = `<section class="sec card"><div class="sec-h"><h2>Alerts</h2><p>Newest leads and problems first</p></div>${
+      (agg.alerts || []).length ? `<div class="alerts">${agg.alerts.map(a => {
+        const [col, label] = SEV[a.sev] || SEV.setup;
+        return `<div class="al" style="--ac:${col}"><i></i><div><div class="who">${esc(label)} · ${esc(a.clientName)}</div><b>${esc(a.title)}</b><p>${esc(a.body)}</p></div><a class="go" href="#/c/${encodeURIComponent(a.client)}">Open →</a></div>`;
+      }).join('')}</div>` : '<div class="empty"><b>Nothing needs you right now</b>Alerts show up here when a client gets a lead, traffic drops, or a connection breaks.</div>'
+    }</section>`;
+
+    const names = [...new Map((agg.inbox || []).map(l => [l.client, l.clientName])).entries()];
+    const inboxBody = () => {
+      const list = (agg.inbox || []).filter(l => dashFilter === 'all' || l.client === dashFilter);
+      return list.length ? `<div class="leads">${list.map(leadCard).join('')}</div>`
+        : '<div class="empty"><b>No client leads in the last 28 days</b>Submissions from client sites land here, newest first.</div>';
+    };
+    const chips = names.length > 1 ? `<div class="chips" id="chips"><button type="button" data-f="all" class="${dashFilter === 'all' ? 'on' : ''}">All clients</button>${names.map(([id, nm]) => `<button type="button" data-f="${esc(id)}" class="${dashFilter === id ? 'on' : ''}">${esc(nm)}</button>`).join('')}</div>` : '';
+    inbox = `<section class="sec card"><div class="sec-h"><h2>Client lead inbox</h2><p>Every client, newest first</p></div>${chips}<div id="inbox">${inboxBody()}</div></section>`;
+    window.__inboxBody = inboxBody;
+
+    const mark = b => b ? '<span class="ok">✓</span>' : '<span class="no">—</span>';
+    setup = `<section class="sec card"><div class="sec-h"><h2>Client setup</h2><p>What each client still needs connected</p></div>
+      <div class="tscroll"><table>
+      <thead><tr><th>Client</th><th class="c">Analytics</th><th class="c">Search Console</th><th class="c">Leads</th><th class="c">Password</th><th class="r">Status</th></tr></thead>
+      <tbody>${(agg.setup || []).map(s => `<tr>
+        <td class="q"><a href="#/c/${encodeURIComponent(s.id)}">${esc(s.name)}</a></td>
+        <td class="c">${mark(s.ga)}</td><td class="c">${mark(s.gsc)}</td><td class="c">${mark(s.netlify)}</td><td class="c">${mark(s.password)}</td>
+        <td class="r">${s.ok ? '<span class="pill ready">Ready</span>' : '<span class="pill todo">Needs setup</span>'}</td>
+      </tr>`).join('')}</tbody></table></div></section>`;
+  }
+
   view.innerHTML = `
     <div class="list-h">
       <div><div class="eyebrow">Internal · all clients</div><h1>Client websites</h1></div>
       <button class="tbtn" id="refreshList" type="button"><svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-2-4.5M16 4v3.5h-3.5"/></svg><span>Refresh</span></button>
     </div>
     ${warn}
-    <div class="grid">${cards || '<div class="empty"><b>No clients yet</b>Add one to clients.json.</div>'}</div>`;
+    ${kpis}
+    <div class="grid">${cards || '<div class="empty"><b>No clients yet</b>Add one to clients.json.</div>'}</div>
+    ${alerts}
+    ${inbox}
+    ${setup}`;
   $('#refreshList').onclick = () => showList(true);
+  const ch = $('#chips');
+  if (ch) ch.querySelectorAll('button').forEach(b => b.onclick = () => {
+    dashFilter = b.dataset.f;
+    ch.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    $('#inbox').innerHTML = window.__inboxBody();
+  });
 }
 
 /* ================= leads from our own site ================= */
@@ -1154,30 +1220,40 @@ function leadCard(x){
 async function showDashboard(fresh){
   document.body.classList.remove('present');
   $('#presentBtn').hidden = true;
-  view.innerHTML = loading('Pulling live numbers across every client…');
-  let d, mine = { leads: [] };
-  try {
-    // Our own leads matter more than anything else on this screen, so they
-    // are fetched alongside and never blocked by a slow client pull.
-    const [dash, ours] = await Promise.all([
-      api('/api/dashboard' + (fresh ? '?refresh=1' : '')),
-      api('/api/leads').catch(() => ({ leads: [] }))
-    ]);
-    d = dash; mine = ours;
-  }
-  catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load your dashboard.</b> ${esc(e.message)}</div>`; return; }
+  view.innerHTML = loading('Loading your leads…');
 
+  // This screen is JRNEE's own: our leads, nothing about clients. It only
+  // hits /api/leads, so it opens instantly instead of waiting on Google and
+  // Netlify calls for every client.
+  let mine;
+  try { mine = await api('/api/leads'); }
+  catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load your leads.</b> ${esc(e.message)}</div>`; return; }
 
-  /* Our own new leads, top of the screen, before anything else. */
-  const fresh_ = (mine.leads || []).filter(l => l.status !== 'done');
-  setLeadBadge(fresh_.length);
-  const myCard = l => `<article class="nl" data-id="${esc(l.id)}">
+  const all  = mine.leads || [];
+  const open = all.filter(l => l.status !== 'done');
+  const done = all.filter(l => l.status === 'done');
+  setLeadBadge(open.length);
+
+  const within = d => { const t = Date.now() - d * 864e5;
+    return all.filter(l => new Date(l.when).getTime() >= t).length; };
+
+  const stat = (label, value, note, color) =>
+    `<div class="kpi card" style="--kc:${color}"><small>${label}</small><div class="v">${value}</div><div class="n">${note}</div></div>`;
+  const stats = `<div class="kpis">
+    ${stat('To call back', open.length, open.length ? 'Waiting on you' : 'All caught up',
+           open.length ? 'var(--green)' : 'var(--cyan)')}
+    ${stat('Last 7 days', within(7), 'New enquiries', 'var(--blue)')}
+    ${stat('Last 28 days', within(28), 'New enquiries', 'var(--violet)')}
+    ${stat('All time', all.length, 'Since the form went live', 'var(--amber)')}
+  </div>`;
+
+  const card = l => `<article class="nl" data-id="${esc(l.id)}">
       <div class="nl-top">
         <div class="nl-who">
           <b>${esc(l.name || 'No name given')}</b>
           ${l.company ? `<span class="nl-co">${esc(l.company)}</span>` : ''}
         </div>
-        <span class="nl-when">${esc(ago(l.when))}</span>
+        <span class="nl-when">${esc(ago(l.when))}${l.form ? ` · ${esc(l.form)}` : ''}</span>
       </div>
       ${l.topic ? `<p class="nl-topic">${esc(l.topic)}</p>` : ''}
       ${l.details ? `<p class="nl-detail">${esc(l.details)}</p>` : ''}
@@ -1192,70 +1268,44 @@ async function showDashboard(fresh){
       </div>
     </article>`;
 
-  const myLeads = fresh_.length
+  const hero = open.length
     ? `<section class="nlwrap">
          <div class="nl-h">
-           <div><span class="nl-count">${fresh_.length}</span>
-             <h2>New lead${fresh_.length>1?'s':''} for you</h2>
-             <p>From jrnee.ai &mdash; nobody has picked ${fresh_.length>1?'these':'this'} up yet</p></div>
+           <div><span class="nl-count">${open.length}</span>
+             <h2>New lead${open.length>1?'s':''} for you</h2>
+             <p>From jrnee.ai &mdash; nobody has picked ${open.length>1?'these':'this'} up yet</p></div>
            <a class="nl-all" href="#/leads">All leads &rarr;</a>
          </div>
-         <div class="nl-list">${fresh_.slice(0,5).map(myCard).join('')}</div>
-         ${fresh_.length>5?`<a class="nl-more" href="#/leads">${fresh_.length-5} more waiting &rarr;</a>`:''}
+         <div class="nl-list">${open.slice(0,6).map(card).join('')}</div>
+         ${open.length>6?`<a class="nl-more" href="#/leads">${open.length-6} more waiting &rarr;</a>`:''}
        </section>`
     : `<section class="nlwrap calm">
-         <div class="nl-h"><div><h2>No new leads</h2>
-           <p>Anyone who fills in a form on jrnee.ai shows up here first.</p></div>
+         <div class="nl-h"><div><h2>No new leads right now</h2>
+           <p>Anyone who fills in a form on jrnee.ai lands here first.</p></div>
            <a class="nl-all" href="#/leads">All leads &rarr;</a></div>
        </section>`;
 
-  const t = d.totals, cfg = d.config || {};
-  let warn = '';
-  if (!cfg.google) warn += `<div class="notice"><b>Google isn't connected yet.</b> Add <code>GOOGLE_SERVICE_ACCOUNT</code> in Render → Environment.</div>`;
-  if (!cfg.netlify) warn += `<div class="notice"><b>No lead source connected yet.</b> Add <code>NETLIFY_TOKEN</code> (or <code>GHL_TOKENS</code> for GoHighLevel clients) in Render → Environment.</div>`;
-
-  const kpi = (label, value, d_, note, color) => `<div class="kpi card" style="--kc:${color}"><small>${label}</small><div class="v">${value}${d_ || ''}</div><div class="n">${note}</div></div>`;
-  const kpis = `<div class="kpis">
-    ${kpi('Visitors, all clients', fmt(t.visitors), delta(t.visitors, t.prevVisitors), t.visitors == null ? 'No Analytics connected yet' : 'Last 28 days vs the 28 before', 'var(--blue)')}
-    ${kpi('Leads, all clients', fmt(t.leads), delta(t.leads, t.prevLeads), t.leads == null ? 'No Netlify leads connected yet' : 'Form submissions, last 28 days', 'var(--green)')}
-    ${kpi('Clients', fmt(t.clients), '', 'In clients.json', 'var(--violet)')}
-    ${kpi('Need your attention', fmt(t.attention), '', t.attention ? 'New leads, drops or failures' : 'All clear', t.attention ? 'var(--amber)' : 'var(--cyan)')}
-  </div>`;
-
-  const alerts = d.alerts.length ? `<div class="alerts">${d.alerts.map(a => {
-    const [col, label] = SEV[a.sev] || SEV.setup;
-    return `<div class="al" style="--ac:${col}"><i></i><div><div class="who">${esc(label)} · ${esc(a.clientName)}</div><b>${esc(a.title)}</b><p>${esc(a.body)}</p></div><a class="go" href="#/c/${encodeURIComponent(a.client)}">Open →</a></div>`;
-  }).join('')}</div>` : '<div class="empty"><b>Nothing needs you right now</b>Alerts show up here when a lead comes in, traffic drops, or a connection breaks.</div>';
-
-  const names = [...new Map(d.inbox.map(l => [l.client, l.clientName])).entries()];
-  const inboxBody = () => {
-    const list = d.inbox.filter(l => dashFilter === 'all' || l.client === dashFilter);
-    return list.length ? `<div class="leads">${list.map(leadCard).join('')}</div>`
-      : '<div class="empty"><b>No leads in the last 28 days</b>Form submissions from every client site land here, newest first.</div>';
-  };
-  const chips = names.length > 1 ? `<div class="chips" id="chips"><button type="button" data-f="all" class="${dashFilter === 'all' ? 'on' : ''}">All clients</button>${names.map(([id, nm]) => `<button type="button" data-f="${esc(id)}" class="${dashFilter === id ? 'on' : ''}">${esc(nm)}</button>`).join('')}</div>` : '';
-
-  const mark = b => b ? '<span class="ok">✓</span>' : '<span class="no">—</span>';
-  const setup = `<div class="tscroll"><table>
-    <thead><tr><th>Client</th><th class="c">Analytics</th><th class="c">Search Console</th><th class="c">Leads</th><th class="c">Password</th><th class="r">Status</th></tr></thead>
-    <tbody>${d.setup.map(s => `<tr>
-      <td class="q"><a href="#/c/${encodeURIComponent(s.id)}">${esc(s.name)}</a></td>
-      <td class="c">${mark(s.ga)}</td><td class="c">${mark(s.gsc)}</td><td class="c">${mark(s.netlify)}</td><td class="c">${mark(s.password)}</td>
-      <td class="r">${s.ok ? '<span class="pill ready">Ready</span>' : '<span class="pill todo">Needs setup</span>'}</td>
-    </tr>`).join('')}</tbody></table></div>`;
+  const recent = done.length ? `<section class="sec card">
+      <div class="sec-h"><h2>Recently handled</h2><p>The last few you've already called back</p></div>
+      <div class="leads">${done.slice(0,4).map(l => `<div class="lead">
+        <div class="lh"><b>${esc(l.name || 'No name given')}</b><span>${esc(ago(l.when))}</span></div>
+        <div class="lc">${l.phone?`<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>`:''}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:''}</div>
+      </div>`).join('')}</div>
+    </section>` : '';
 
   view.innerHTML = `
     <div class="list-h">
-      <div><div class="eyebrow">Internal · JRNEE</div><h1>My Dashboard</h1></div>
+      <div><div class="eyebrow">JRNEE Technologies</div><h1>My Dashboard</h1></div>
       <button class="tbtn" id="refreshDash" type="button"><svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-2-4.5M16 4v3.5h-3.5"/></svg><span>Refresh</span></button>
     </div>
-    <div class="stamp"><span class="live">Live data</span>Last 28 days · updated ${esc(ago(d.generated))}</div>
-    ${myLeads}
-    ${warn}
-    ${kpis}
-    <section class="sec card"><div class="sec-h"><h2>Alerts</h2><p>Newest leads and problems first</p></div>${alerts}</section>
-    <section class="sec card"><div class="sec-h"><h2>Lead inbox</h2><p>Every client, newest first</p></div>${chips}<div id="inbox">${inboxBody()}</div></section>
-    <section class="sec card"><div class="sec-h"><h2>Client setup</h2><p>What each client still needs connected</p></div>${setup}</section>`;
+    <div class="stamp"><span class="live">Your leads</span>From jrnee.ai &middot; updated just now</div>
+    ${hero}
+    ${stats}
+    ${recent}
+    <a class="xover card" href="#/clients">
+      <div><b>Checking on a client?</b><span>Traffic, leads and alerts for every client site live under Clients.</span></div>
+      <span class="xgo">Clients &rarr;</span>
+    </a>`;
 
   $('#refreshDash').onclick = () => showDashboard(true);
   view.querySelectorAll('.nl-btn.done').forEach(b => b.onclick = async () => {
@@ -1263,16 +1313,9 @@ async function showDashboard(fresh){
     try{
       await api('/api/leads', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ id: b.dataset.id, status:'done' }) });
-      const card = b.closest('.nl');
-      card.classList.add('gone');
+      const c = b.closest('.nl'); c.classList.add('gone');
       setTimeout(() => showDashboard(), 260);
     }catch(e){ b.disabled=false; b.textContent='Mark handled'; alert("Couldn't update: "+e.message); }
-  });
-  const ch = $('#chips');
-  if (ch) ch.querySelectorAll('button').forEach(b => b.onclick = () => {
-    dashFilter = b.dataset.f;
-    ch.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-    $('#inbox').innerHTML = inboxBody();
   });
 }
 
