@@ -144,6 +144,19 @@ h2{font-size:18px;font-weight:800;letter-spacing:-.03em}
 
 
 
+
+/* lead alerts panel */
+.notrow{display:grid;gap:10px}
+.notline{display:flex;align-items:center;gap:10px;font-size:14.5px;flex-wrap:wrap}
+.notline b{font-weight:800;min-width:106px}
+.notline span:last-child{color:var(--muted);font-size:13.5px}
+.notline .dot{width:9px;height:9px;border-radius:50%;background:var(--line-2,#CBD5E6);flex:none}
+.notline .dot.on{background:var(--good);box-shadow:0 0 0 3px rgba(14,159,110,.18)}
+.notact{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+.pushnote{margin-top:11px;font-size:13.5px;line-height:1.5}
+.pushnote.ok{color:var(--good)}
+.pushnote.bad{color:var(--bad)}
+.pushnote:empty{display:none}
 /* quiet hand-off from My Dashboard to the client side */
 .xover{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
   margin-top:18px;padding:18px 20px;border-radius:16px;border:1px solid var(--line);
@@ -1142,6 +1155,84 @@ async function showList(fresh){
   });
 }
 
+
+/* ================= notifications ================= */
+/* Push needs three things lined up: a service worker, permission, and on
+   iOS the app actually installed to the home screen. The banner says which
+   one is missing rather than just failing quietly. */
+const PUSH = {
+  supported: 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window,
+  standalone: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
+  ios: /iPad|iPhone|iPod/.test(navigator.userAgent)
+};
+function b64ToU8(s){
+  const pad='='.repeat((4-s.length%4)%4);
+  const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+async function enablePush(btn){
+  const say = (t,ok) => { const n=$('#pushNote'); if(n){ n.textContent=t; n.className='pushnote '+(ok?'ok':'bad'); } };
+  if(!PUSH.supported){ say("This browser can't do notifications. Use Safari on iOS or Chrome.",false); return; }
+  if(PUSH.ios && !PUSH.standalone){
+    say('On iPhone you have to add the hub to your home screen first: Share → Add to Home Screen, then open it from there and try again.',false);
+    return;
+  }
+  btn.disabled=true; btn.textContent='Asking…';
+  try{
+    const { key } = await api('/api/push/key');
+    if(!key) throw new Error('No VAPID key set on the server yet.');
+    const perm = await Notification.requestPermission();
+    if(perm!=='granted'){ say('Notifications were blocked. Turn them back on in your phone settings for this app.',false); btn.disabled=false; btn.textContent='Turn on notifications'; return; }
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64ToU8(key) });
+    await api('/api/push/subscribe', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(sub.toJSON()) });
+    say('On. This phone will buzz when a lead comes in.',true);
+    btn.textContent='Notifications on';
+  }catch(e){
+    say("Couldn't turn them on: "+e.message,false);
+    btn.disabled=false; btn.textContent='Turn on notifications';
+  }
+}
+async function notifyPanel(){
+  if(!IS_CLIENT){
+    let st={};
+    try{ st = await api('/api/push/status'); }catch(e){ return ''; }
+    const live = st.subscriptions>0;
+    return `<section class="sec card" id="notifySec">
+      <div class="sec-h"><h2>Lead alerts</h2><p>Only JRNEE's own leads — never a client's</p></div>
+      <div class="notrow">
+        <div class="notline"><span class="dot ${live?'on':''}"></span>
+          <b>Push</b><span>${live?`${st.subscriptions} device${st.subscriptions>1?'s':''} signed up`:'No device signed up yet'}</span></div>
+        <div class="notline"><span class="dot ${st.twilio?'on':''}"></span>
+          <b>Text message</b><span>${st.twilio?'Configured':'Add the Twilio keys in Render to switch this on'}</span></div>
+      </div>
+      <div class="notact">
+        <button class="tbtn" type="button" id="pushOn">${live?'Add this device':'Turn on notifications'}</button>
+        ${live||st.twilio?'<button class="tbtn" type="button" id="pushTest">Send me a test</button>':''}
+      </div>
+      <p class="pushnote" id="pushNote"></p>
+    </section>`;
+  }
+  return '';
+}
+function wireNotify(){
+  const on=$('#pushOn'); if(on) on.onclick=()=>enablePush(on);
+  const t=$('#pushTest');
+  if(t) t.onclick=async()=>{
+    t.disabled=true; t.textContent='Sending…';
+    try{
+      const r=await api('/api/push/test',{method:'POST'});
+      const n=$('#pushNote');
+      n.className='pushnote ok';
+      n.textContent='Sent. Push: '+(r.push.sent||0)+' device(s)'+
+        (r.sms && r.sms.sent ? ', and a text.' : r.sms && r.sms.error ? '. SMS failed: '+r.sms.error : r.sms && r.sms.skipped ? '. '+r.sms.skipped : '.');
+    }catch(e){ const n=$('#pushNote'); n.className='pushnote bad'; n.textContent="Test failed: "+e.message; }
+    t.disabled=false; t.textContent='Send me a test';
+  };
+}
+
 /* ================= leads from our own site ================= */
 /* These come from jrnee.ai's forms, which post to /lead on this server.
    Separate from client leads, which are pulled from Netlify or GHL. */
@@ -1302,12 +1393,14 @@ async function showDashboard(fresh){
     ${hero}
     ${stats}
     ${recent}
+    ${await notifyPanel()}
     <a class="xover card" href="#/clients">
       <div><b>Checking on a client?</b><span>Traffic, leads and alerts for every client site live under Clients.</span></div>
       <span class="xgo">Clients &rarr;</span>
     </a>`;
 
   $('#refreshDash').onclick = () => showDashboard(true);
+  wireNotify();
   view.querySelectorAll('.nl-btn.done').forEach(b => b.onclick = async () => {
     b.disabled = true; b.textContent = 'Saving…';
     try{

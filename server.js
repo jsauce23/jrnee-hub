@@ -36,6 +36,7 @@ const ASK = require('./ask.js');
 const INVOICES = require('./invoices.js');
 const INVOICE_PDF = require('./invoice-pdf.js');
 const LEADS = require('./leads.js');
+const NOTIFY = require('./notify.js');
 
 // jrnee.ai is a static site on a different origin, so its forms post here.
 const ASSETS = {
@@ -43,7 +44,8 @@ const ASSETS = {
   '/icon-192.png':          { file: 'icon-192.png',          type: 'image/png' },
   '/icon-512.png':          { file: 'icon-512.png',          type: 'image/png' },
   '/icon-maskable-512.png': { file: 'icon-maskable-512.png', type: 'image/png' },
-  '/apple-touch-icon.png':  { file: 'apple-touch-icon.png',  type: 'image/png' }
+  '/apple-touch-icon.png':  { file: 'apple-touch-icon.png',  type: 'image/png' },
+  '/sw.js':                 { file: 'sw.js',                 type: 'text/javascript' }
 };
 
 const LEAD_ORIGINS = (process.env.LEAD_ORIGINS || 'https://jrnee.ai,https://www.jrnee.ai')
@@ -858,6 +860,9 @@ http.createServer(async (req, res) => {
         return fail(500, "We couldn't save that. Please call or email us instead.");
       }
       console.log('LEAD', saved.id, saved.name, saved.email || saved.phone, '|', saved.topic);
+      // After the write, never before: a notification problem must not cost
+      // us the lead. announce() swallows its own failures.
+      try { NOTIFY.announce(saved); } catch (e) { console.error('NOTIFY threw', e); }
       if (wantsJson) return json(res, 200, { ok: true, id: saved.id });
       res.writeHead(303, { Location: back });
       return res.end();
@@ -898,6 +903,38 @@ http.createServer(async (req, res) => {
       const own = ownId && CLIENTS.find(c => c.id === ownId);
       const hub = isAdmin ? { role: 'admin' } : { role: 'client', id: ownId, name: own ? own.name : '' };
       return html(res, 200, APP.replace('__HUB__', JSON.stringify(hub).replace(/</g, '\u003c')));
+    }
+
+    if (u.pathname === '/api/push/key') {
+      return json(res, 200, { key: NOTIFY.publicKey() || null });
+    }
+
+    if (u.pathname === '/api/push/subscribe' && req.method === 'POST') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      const b = JSON.parse(await readBody(req) || '{}');
+      if (!b.endpoint) return json(res, 400, { error: 'No endpoint.' });
+      const id = NOTIFY.saveSub(b);
+      console.log('PUSH subscribed', id);
+      return json(res, 200, { ok: true, id });
+    }
+
+    if (u.pathname === '/api/push/test' && req.method === 'POST') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      const push = await NOTIFY.pushAll();
+      let sms = null;
+      try { sms = await NOTIFY.sms('JRNEE Hub test alert — notifications are working.'); }
+      catch (e) { sms = { error: e.message }; }
+      return json(res, 200, { push, sms });
+    }
+
+    if (u.pathname === '/api/push/status') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      return json(res, 200, {
+        vapid: !!NOTIFY.publicKey(),
+        subscriptions: NOTIFY.listSubs().length,
+        twilio: !!(process.env.TWILIO_SID && process.env.TWILIO_TOKEN &&
+                   process.env.TWILIO_FROM && process.env.ALERT_SMS_TO)
+      });
     }
 
     if (u.pathname === '/api/leads') {
