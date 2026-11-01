@@ -1,0 +1,14 @@
+[
+  {
+    "id": "rep1",
+    "name": "First Rep",
+    "initials": "R1",
+    "rates": { "upfront": 1000, "monthly": 500 }
+  },
+  {
+    "id": "rep2",
+    "name": "Second Rep",
+    "initials": "R2",
+    "rates": { "upfront": 1000, "monthly": 500 }
+  }
+]

@@ -4,6 +4,8 @@
 // Environment variables (set in Render → Environment):
 //   ADMIN_PASSWORD          your JRNEE password — opens the full client list
 //   CLIENT_PASSWORDS        one password per client, e.g.  marco:Marco1234, nextclient:TheirPass
+//   REP_PASSWORDS           one password per sales rep, e.g.  rep1:TheirPass, rep2:TheirPass
+//                             rep ids come from reps.json
 //   SESSION_SECRET          any long random string (keeps you logged in across restarts)
 //   GOOGLE_SERVICE_ACCOUNT  the whole Google service-account JSON key, pasted in
 //   NETLIFY_TOKEN           a Netlify personal access token (for form leads)
@@ -25,6 +27,7 @@ const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN || '';
 const SESSION_HOURS = 12;
 
 const CLIENTS = JSON.parse(fs.readFileSync(path.join(__dirname, 'clients.json'), 'utf8'));
+const REPS = JSON.parse(fs.readFileSync(path.join(__dirname, 'reps.json'), 'utf8'));
 /* Entries marked billingOnly are invoiced but have no website to report on,
    so they stay out of the dashboard, the client list and reports. */
 const SITE_CLIENTS = CLIENTS.filter(c => !c.billingOnly);
@@ -36,6 +39,7 @@ const ASK = require('./ask.js');
 const INVOICES = require('./invoices.js');
 const INVOICE_PDF = require('./invoice-pdf.js');
 const LEADS = require('./leads.js');
+const DEALS = require('./commissions.js');
 const NOTIFY = require('./notify.js');
 
 // jrnee.ai is a static site on a different origin, so its forms post here.
@@ -52,6 +56,7 @@ const LEAD_ORIGINS = (process.env.LEAD_ORIGINS || 'https://jrnee.ai,https://www.
   .split(',').map(s => s.trim()).filter(Boolean);
 const SA = loadServiceAccount();
 const CLIENT_PW = loadClientPasswords();
+const REP_PW = loadRepPasswords();
 const API_KEYS = loadApiKeys();
 const GHL_TOKENS = loadPairs('GHL_TOKENS');
 
@@ -97,6 +102,14 @@ function loadClientPasswords() {
   return map;
 }
 
+function loadRepPasswords() {
+  const map = loadPairs('REP_PASSWORDS');
+  Object.keys(map).forEach(id => {
+    if (!REPS.some(r => r.id === id)) console.error(`REP_PASSWORDS has "${id}" but reps.json has no rep with that id`);
+  });
+  return map;
+}
+
 function loadServiceAccount() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT;
   if (!raw) return null;
@@ -132,6 +145,10 @@ function sessionRole(tok) {
     const id = role.slice(2);
     if (CLIENTS.some(c => c.id === id) && CLIENT_PW[id]) return role;   // password removed = locked out
   }
+  if (role && role.startsWith('r:')) {
+    const id = role.slice(2);
+    if (REPS.some(r => r.id === id) && REP_PW[id]) return role;
+  }
   return null;
 }
 function cookies(req) {
@@ -151,6 +168,10 @@ function roleForPassword(p) {
   for (const [id, pw] of Object.entries(CLIENT_PW)) {
     if (!/^[\w-]+$/.test(id) || !CLIENTS.some(c => c.id === id)) continue;
     if (crypto.timingSafeEqual(h, sha(pw)) && !role) role = 'c:' + id;
+  }
+  for (const [id, pw] of Object.entries(REP_PW)) {
+    if (!/^[\w-]+$/.test(id) || !REPS.some(r => r.id === id)) continue;
+    if (crypto.timingSafeEqual(h, sha(pw)) && !role) role = 'r:' + id;
   }
   return role;
 }
@@ -897,12 +918,97 @@ http.createServer(async (req, res) => {
       return html(res, 200, loginPage(ADMIN_PASSWORD ? '' : 'ADMIN_PASSWORD is not set on the server yet.'));
     }
     const isAdmin = role === 'admin';
+    const isRep = role.startsWith('r:');
     const ownId = isAdmin ? null : role.slice(2);
+    const ownRep = isRep ? REPS.find(r => r.id === ownId) : null;
 
     if (u.pathname === '/' || u.pathname === '/index.html') {
-      const own = ownId && CLIENTS.find(c => c.id === ownId);
-      const hub = isAdmin ? { role: 'admin' } : { role: 'client', id: ownId, name: own ? own.name : '' };
+      let hub;
+      if (isAdmin) hub = { role: 'admin' };
+      else if (isRep) hub = { role: 'rep', id: ownId, name: ownRep ? ownRep.name : '' };
+      else {
+        const own = CLIENTS.find(c => c.id === ownId);
+        hub = { role: 'client', id: ownId, name: own ? own.name : '' };
+      }
       return html(res, 200, APP.replace('__HUB__', JSON.stringify(hub).replace(/</g, '\u003c')));
+    }
+
+    /* ---------- commissions ---------- */
+    // A rep sees their own board and nothing else; JRNEE sees every rep.
+    if (u.pathname === '/api/deals') {
+      if (!isAdmin && !isRep) return json(res, 403, { error: 'Not allowed.' });
+
+      if (req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const act = String(b.action || 'create');
+
+        // Who the deal belongs to. A rep can only ever act on their own.
+        const target = act === 'create'
+          ? (isRep ? ownId : String(b.repId || ''))
+          : (DEALS.get(String(b.id || '')) || {}).repId;
+        if (!target) return json(res, 404, { error: 'No deal with that id.' });
+        if (!REPS.some(r => r.id === target)) return json(res, 400, { error: 'Unknown rep.' });
+        if (isRep && target !== ownId) return json(res, 403, { error: 'Not allowed.' });
+
+        if (act === 'create') {
+          const deal = DEALS.normalise(b);
+          const bad = DEALS.problemWith(deal);
+          if (bad) return json(res, 400, { error: bad });
+          const rec = DEALS.create(target, deal);
+          console.log('DEAL new', rec.id, target, '|', rec.business);
+          return json(res, 200, { ok: true, deal: rec });
+        }
+
+        if (act === 'edit') {
+          const deal = DEALS.normalise(b);
+          const bad = DEALS.problemWith(deal);
+          if (bad) return json(res, 400, { error: bad });
+          const rec = DEALS.edit(String(b.id), deal);
+          if (!rec) return json(res, 404, { error: 'No deal with that id.' });
+          if (rec.locked) return json(res, 409, { error: 'That one is already closed, so it can no longer be edited.' });
+          return json(res, 200, { ok: true, deal: rec });
+        }
+
+        // Everything below decides what someone gets paid, so it is JRNEE's alone.
+        if (!isAdmin) return json(res, 403, { error: 'Only JRNEE can do that.' });
+
+        if (act === 'stage') {
+          const rec = DEALS.setStage(String(b.id), String(b.stage || ''), { closedAt: b.closedAt, reason: b.reason });
+          if (!rec) return json(res, 404, { error: 'No deal with that id, or an unknown stage.' });
+          console.log('DEAL', rec.stage, rec.id, rec.repId, '|', rec.business);
+          return json(res, 200, { ok: true, deal: rec });
+        }
+        if (act === 'ended') {
+          const rec = DEALS.setEnded(String(b.id), b.endedAt === null ? null : b.endedAt);
+          if (!rec) return json(res, 404, { error: 'That deal is not closed.' });
+          return json(res, 200, { ok: true, deal: rec });
+        }
+        if (act === 'delete') {
+          return json(res, 200, { ok: DEALS.remove(String(b.id)) });
+        }
+        return json(res, 400, { error: 'Unknown action.' });
+      }
+
+      const now = new Date();
+      if (isRep) {
+        const s = DEALS.summary(ownRep, DEALS.list(ownId), now);
+        return json(res, 200, { rep: { id: ownId, name: ownRep.name }, ...s });
+      }
+      const all = DEALS.list();
+      return json(res, 200, {
+        reps: REPS.map(r => ({
+          id: r.id, name: r.name, initials: r.initials || '',
+          hasPassword: !!REP_PW[r.id],
+          ...DEALS.summary(r, all.filter(d => d.repId === r.id), now)
+        })),
+        orphans: all.filter(d => !REPS.some(r => r.id === d.repId)).length
+      });
+    }
+
+    // A rep's whole hub is the board above. Nothing else here is theirs.
+    if (isRep) {
+      if (u.pathname.startsWith('/api/')) return json(res, 403, { error: 'Not allowed.' });
+      return send(res, 404, 'text/plain', 'Not found');
     }
 
     if (u.pathname === '/api/push/key') {

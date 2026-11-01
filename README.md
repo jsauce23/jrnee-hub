@@ -8,6 +8,7 @@ Private back office for client website analytics. Runs on Render as a Web Servic
 |---|---|
 | `ADMIN_PASSWORD` | Your JRNEE password — the only one that opens the full client list |
 | `CLIENT_PASSWORDS` | One password per client: `marco:Marco1234, nextclient:TheirPass` |
+| `REP_PASSWORDS` | One password per sales rep: `rep1:TheirPass, rep2:TheirPass`. Ids come from `reps.json` |
 | `SESSION_SECRET` | Any long random string |
 | `GOOGLE_SERVICE_ACCOUNT` | The full contents of the Google service-account JSON key |
 | `NETLIFY_TOKEN` | Netlify personal access token |
@@ -24,7 +25,37 @@ Never commit the Google key file or any of these values to GitHub.
 - A client's password takes them straight to **their own report** and nothing else. The server
   enforces this — they can't reach the client list or another client's report even by editing the URL.
 - Every password must be different. Commas aren't allowed inside a password.
-- Remove a client from `CLIENT_PASSWORDS` and anyone logged in as them is signed out immediately.
+- A sales rep's password opens **their own commission board** and nothing else. They cannot reach
+  the client list, any report, the lead inbox or another rep's board, and the server refuses it
+  rather than just hiding it.
+- Remove a client from `CLIENT_PASSWORDS`, or a rep from `REP_PASSWORDS`, and anyone logged in as
+  them is signed out immediately.
+
+## Commissions
+
+Two sales reps work on commission. The board is how they track it, and it is deliberately small.
+
+- A rep adds an appointment as soon as they book it: business, who they're meeting, the date.
+- You mark it **closed** (or didn't close) from **Commissions** in your own login. That is the only
+  place a deal's stage can change — a rep can never close their own deal.
+- On close they earn the upfront amount, then the monthly amount for every whole month the business
+  stays on the books. Mark a client **off the books** when they leave and the recurring stops there;
+  everything earned up to that date stays earned.
+- Rates live in `reps.json` per rep, defaulting to $1,000 upfront and $500 a month. The figures are
+  flat per deal, not a share of what the client pays, so **no client rate is ever stored on a deal
+  and a rep can never see one.**
+- Deals are stored as one JSON file each under `DATA_DIR/deals/`, so they need the same Render disk
+  as reports.
+
+### Adding or changing a rep
+
+1. Edit `reps.json` — `id`, `name`, `initials`, and `rates` if theirs differ.
+2. In Render → **Environment**, add `theirid:TheirPassword` to `REP_PASSWORDS`.
+3. The Commissions tab warns you about any rep in `reps.json` with no password set.
+
+Changing someone's `rates` changes what their **past** deals are worth too, because earnings are
+calculated from the rate each time the page loads rather than frozen onto the deal. If you ever need
+a rate change to apply only from a date forward, say so and it becomes a per-deal field instead.
 
 ## Reports
 
