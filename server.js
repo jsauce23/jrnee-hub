@@ -849,10 +849,15 @@ http.createServer(async (req, res) => {
       // Browsers that ran the JS get JSON back; a no-JS form post gets sent
       // back to the page with ?sent=1 so the person still sees a thank-you.
       const wantsJson = req.headers['x-requested-with'] === 'fetch';
-      const back = (LEAD_ORIGINS[0] || '') + '/consult/?sent=1';
+      const site = LEAD_ORIGINS[0] || '';
+      // More than one page posts here now, so a form may name the page to
+      // come back to. Set once the body is parsed, and only ever to a path
+      // on our own site: accepting a full URL here would be an open redirect
+      // for anyone able to craft a form post.
+      let landing = '/consult/';
       const fail = (code, msg) => wantsJson
         ? json(res, code, { ok: false, error: msg })
-        : (res.writeHead(303, { Location: (LEAD_ORIGINS[0] || '') + '/consult/?error=1' }), res.end());
+        : (res.writeHead(303, { Location: site + landing + '?error=1' }), res.end());
 
       const a = attempts('lead:' + ip);
       if (a.n >= 12) return fail(429, 'Too many submissions from this connection. Try again shortly.');
@@ -863,6 +868,9 @@ http.createServer(async (req, res) => {
         const raw = await readBody(req, 20000);
         fields = Object.fromEntries(new URLSearchParams(raw));
       } catch (e) { return fail(400, 'That submission was too large.'); }
+
+      if (/^\/(?!\/)[A-Za-z0-9/_-]*$/.test(fields['return'] || '')) landing = fields['return'];
+      const back = site + landing + '?sent=1';
 
       // Honeypot: real people never fill this in.
       if ((fields['website-url'] || '').trim()) {
