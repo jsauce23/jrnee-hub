@@ -250,6 +250,9 @@ td.pth{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--s
 .dev b{font-size:24px;font-weight:800;letter-spacing:-.04em}
 
 .leads{display:grid;gap:10px}
+.nomacts{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.nomacts .tbtn{font-size:12.5px;padding:5px 11px}
+.lead .lc a{margin-right:12px}
 .lead{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--soft)}
 .lead .lh{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .lead .lh b{font-weight:800;letter-spacing:-.02em}
@@ -324,7 +327,9 @@ h2.sect{margin:26px 0 10px;font-size:15px;letter-spacing:-.02em;color:var(--mute
 .tabs::-webkit-scrollbar{display:none}
 .tabs{-webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 14px),transparent 100%);
   mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 14px),transparent 100%)}
-@media (min-width:900px){.tabs{-webkit-mask-image:none;mask-image:none;flex:0 1 auto}}
+/* With the Giveaway tab there are eight of these, so the fade that says
+   "this scrolls" has to stay until there is genuinely room for them all. */
+@media (min-width:1400px){.tabs{-webkit-mask-image:none;mask-image:none;flex:0 1 auto}}
 .top .wrap > .tact{display:flex;align-items:center;gap:8px;flex:none;margin-left:auto}
 
 @media (max-width:760px){
@@ -1020,6 +1025,7 @@ img,svg,video,canvas{max-width:100%;height:auto}
     <nav class="tabs admin" aria-label="Admin">
       <a href="#/" data-tab="dash"><span class="lg">My&nbsp;</span>Dashboard</a>
       <a href="#/leads" data-tab="leads">Leads<span class="lbadge" id="leadBadge" hidden></span></a>
+      <a href="#/nominations" data-tab="nominations">Giveaway<span class="lbadge" id="nomBadge" hidden></span></a>
       <a href="#/clients" data-tab="clients">Clients</a>
       <a href="#/reports" data-tab="reports">Reports</a>
       <a href="#/questions" data-tab="questions">Questions</a>
@@ -1331,6 +1337,86 @@ function setLeadBadge(n){
 // so the tab shows a count without opening it
 async function refreshLeadBadge(){
   try { const d = await api('/api/leads'); setLeadBadge((d.leads||[]).filter(l=>l.status!=='done').length); }
+  catch(e){}
+}
+
+/* ================= giveaway nominations ================= */
+/* Families nominated through jrnee.ai/giveaway/. These post to /nominate on
+   this server and are kept apart from leads on purpose: a nomination is not
+   a sales lead and must never reach a client report. */
+const NOM_LABEL = { new:'New', shortlist:'Shortlisted', winner:'Winner', passed:'Passed' };
+
+async function showNominations(){
+  document.body.classList.remove('present');
+  $('#presentBtn').hidden = true;
+  view.innerHTML = loading('Loading nominations…');
+  let d;
+  try { d = await api('/api/nominations'); }
+  catch(e){ view.innerHTML = `<div class="notice"><b>Couldn't load nominations.</b> ${esc(e.message)}</div>`; return; }
+
+  const all = d.nominations || [];
+  setNomBadge(all.filter(n => n.status === 'new').length);
+
+  if (!all.length){
+    view.innerHTML = `<div class="head"><h1>Giveaway</h1>
+        <p class="sub">Spurs vs Miami, 22 January</p></div>
+      <div class="empty"><b>No nominations yet</b>Families nominated at jrnee.ai/giveaway/ land here, newest first.</div>`;
+    return;
+  }
+
+  const card = n => `<div class="lead jl${n.status==='passed'?' done':''}" data-id="${esc(n.id)}">
+    <div class="lh">
+      <b>${esc(n.family)}${n.area?` <span class="lco">· ${esc(n.area)}</span>`:''}</b>
+      <span>${esc(ago(n.when))} · <span class="tag">${esc(NOM_LABEL[n.status]||n.status)}</span></span>
+    </div>
+    <p class="ltopic">Nominated by ${esc(n.name)}${n.relation?` · ${esc(n.relation)}`:''}</p>
+    <div class="lc">
+      ${n.email?`<a href="mailto:${esc(n.email)}">${esc(n.email)}</a>`:''}
+      ${n.phone?`<a href="tel:${esc(n.phone)}">${esc(n.phone)}</a>`:''}
+      ${n.ig?`<a href="https://instagram.com/${encodeURIComponent(n.ig)}" target="_blank" rel="noopener">@${esc(n.ig)}</a>`:''}
+    </div>
+    <p>${esc(n.reason)}</p>
+    <div class="nomacts">
+      ${['shortlist','winner','passed','new'].filter(s=>s!==n.status).map(s=>
+        `<button class="tbtn nomset" type="button" data-id="${esc(n.id)}" data-to="${s}">${
+          s==='new'?'Put back':s==='shortlist'?'Shortlist':s==='winner'?'Make winner':'Pass'}</button>`).join('')}
+    </div>
+  </div>`;
+
+  const group = (title, st) => {
+    const g = all.filter(n => n.status === st);
+    return g.length ? `<h2 class="sect">${title} · ${g.length}</h2>
+      <div class="leads">${g.map(card).join('')}</div>` : '';
+  };
+
+  view.innerHTML = `<div class="head">
+      <h1>Giveaway</h1>
+      <p class="sub">${all.length} nomination${all.length===1?'':'s'} ·
+        Spurs vs Miami, 22 January · nominations close 10 January</p>
+    </div>
+    ${group('Winner','winner')}
+    ${group('Shortlist','shortlist')}
+    ${group('New','new')}
+    ${group('Passed','passed')}`;
+
+  view.querySelectorAll('.nomset').forEach(b => b.onclick = async () => {
+    if (b.dataset.to === 'winner' &&
+        !confirm('Make this the winning family? Any other winner goes back to the shortlist.')) return;
+    b.disabled = true;
+    try{
+      await api('/api/nominations', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id: b.dataset.id, status: b.dataset.to }) });
+      showNominations();
+    }catch(e){ b.disabled=false; alert("Couldn't update that nomination: " + e.message); }
+  });
+}
+function setNomBadge(n){
+  const el = $('#nomBadge'); if(!el) return;
+  el.textContent = n; el.hidden = !n;
+}
+async function refreshNomBadge(){
+  try { const d = await api('/api/nominations');
+        setNomBadge((d.nominations||[]).filter(n=>n.status==='new').length); }
   catch(e){}
 }
 
@@ -3181,6 +3267,7 @@ function route(){
   const m  = hs.match(/^#\/c\/([\w-]+)/);
   const rp = hs.match(/^#\/reports(?:\/([\w-]+))?(?:\/([\w-]+))?/);
   if (hs === '#/leads'){ setTab('leads'); showLeads(); scrollTo(0,0); return; }
+  if (hs === '#/nominations'){ setTab('nominations'); showNominations(); scrollTo(0,0); return; }
   if (hs === '#/commissions'){ setTab('commissions'); showCommissions(); scrollTo(0,0); return; }
   const tab = rp ? 'reports' : (m || hs === '#/clients') ? 'clients' : 'dash';
   setTab(tab);
@@ -3200,7 +3287,7 @@ state.days = [7,28,90].includes(+store('hub-days')) ? +store('hub-days') : 28;
 function setTab(t){ document.querySelectorAll('.tabs a').forEach(a=>a.classList.toggle('on', a.dataset.tab===t)); }
 addEventListener('hashchange', route);
 // so a new lead is visible on the tab without opening it
-if (!IS_CLIENT && !IS_REP) refreshLeadBadge();
+if (!IS_CLIENT && !IS_REP) { refreshLeadBadge(); refreshNomBadge(); }
 
 /* present mode */
 $('#presentBtn').onclick = () => { document.body.classList.add('present'); scrollTo(0,0); };

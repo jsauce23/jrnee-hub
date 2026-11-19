@@ -39,6 +39,7 @@ const ASK = require('./ask.js');
 const INVOICES = require('./invoices.js');
 const INVOICE_PDF = require('./invoice-pdf.js');
 const LEADS = require('./leads.js');
+const NOMS = require('./nominations.js');
 const DEALS = require('./commissions.js');
 const NOTIFY = require('./notify.js');
 
@@ -889,6 +890,68 @@ http.createServer(async (req, res) => {
       return res.end();
     }
 
+    // Giveaway nominations from jrnee.ai/giveaway/. Same plumbing as /lead,
+    // but a separate store: a nomination is not a sales lead and must never
+    // land on the Leads screen.
+    if (u.pathname === '/nominate') {
+      const origin = req.headers.origin || '';
+      if (LEAD_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+      }
+      if (req.method === 'OPTIONS') {
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With');
+        res.setHeader('Access-Control-Max-Age', '86400');
+        return send(res, 204, 'text/plain', '');
+      }
+      if (req.method !== 'POST') return json(res, 405, { error: 'Use POST.' });
+
+      const wantsJson = req.headers['x-requested-with'] === 'fetch';
+      const site = LEAD_ORIGINS[0] || '';
+      const fail = (code, msg) => wantsJson
+        ? json(res, code, { ok: false, error: msg })
+        : (res.writeHead(303, { Location: site + '/giveaway/?error=' + encodeURIComponent(msg) }), res.end());
+
+      // A nomination is one per family, not a form someone hammers.
+      const a = attempts('nom:' + ip);
+      if (a.n >= 8) return fail(429, 'That is a lot of nominations from one connection. Try again a little later.');
+      a.n++;
+
+      let fields;
+      try {
+        const raw = await readBody(req, 20000);
+        fields = Object.fromEntries(new URLSearchParams(raw));
+      } catch (e) { return fail(400, 'That nomination was too long.'); }
+
+      if ((fields['website-url'] || '').trim()) {           // honeypot
+        if (wantsJson) return json(res, 200, { ok: true });
+        res.writeHead(303, { Location: site + '/giveaway/?sent=1' }); return res.end();
+      }
+
+      const nom = NOMS.normalise(fields);
+      const problem = NOMS.problemWith(nom);
+      if (problem) return fail(400, problem);
+
+      let saved;
+      try {
+        saved = NOMS.save(nom, { ip, ua: req.headers['user-agent'] || '', ref: req.headers.referer || '' });
+      } catch (e) {
+        console.error('NOMINATION SAVE FAILED', e);      // never silently lose one
+        return fail(500, "We couldn't save that. Please try again, or email joel@jrnee.ai.");
+      }
+      console.log('NOMINATION', saved.id, saved.name, '->', saved.family);
+      // After the write, never before. A notification problem must not cost
+      // us the nomination.
+      try {
+        NOTIFY.sms(`New Spurs giveaway nomination: ${saved.family}` +
+                   (saved.area ? ` (${saved.area})` : '') + ` — from ${saved.name}`);
+      } catch (e) { console.error('NOTIFY threw', e); }
+      if (wantsJson) return json(res, 200, { ok: true, id: saved.id });
+      res.writeHead(303, { Location: site + '/giveaway/?sent=1' });
+      return res.end();
+    }
+
     if (u.pathname === '/login' && req.method === 'POST') {
       const a = attempts(ip);
       if (a.n >= 10) return html(res, 429, loginPage('Too many attempts. Try again in 15 minutes.'));
@@ -1052,6 +1115,17 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, lead: rec });
       }
       return json(res, 200, { leads: LEADS.list(200) });
+    }
+
+    if (u.pathname === '/api/nominations') {
+      if (!isAdmin) return json(res, 403, { error: 'Not allowed.' });
+      if (req.method === 'POST') {
+        const b = JSON.parse(await readBody(req) || '{}');
+        const rec = NOMS.setStatus(String(b.id || ''), String(b.status || ''));
+        if (!rec) return json(res, 404, { error: 'No nomination with that id, or an unknown status.' });
+        return json(res, 200, { ok: true, nomination: rec });
+      }
+      return json(res, 200, { nominations: NOMS.list(500) });
     }
 
     if (u.pathname === '/api/clients') {
