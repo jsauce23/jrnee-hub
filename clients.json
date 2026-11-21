@@ -1,5 +1,15 @@
 [
   {
+    "id": "jrnee",
+    "name": "JRNEE Technologies",
+    "legal": "JRNEE Technologies LLC",
+    "domain": "jrnee.ai",
+    "initials": "JR",
+    "status": "Live",
+    "ga4PropertyId": "",
+    "gscSiteUrl": "https://jrnee.ai/"
+  },
+  {
     "id": "marco",
     "name": "Marco Crawford Law",
     "legal": "Marco Crawford Law, PLLC",
